@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+python-jose[cryptography]
+# 直接用 bcrypt 做密码哈希；不再使用 passlib（它与 bcrypt>=5 不兼容，见 core/database.py 注释）
+bcrypt>=4.1
+pydantic[email]
+# neo4j 6.x 移除了部分 5.x 的废弃 API，如需回退到 5.x 请自行调整 utils/neo4j_utils.py
+neo4j>=5.0
+requests
+pymysql
+sqlalchemy
+# test/ 下的脚本使用 fastapi.testclient，它需要 httpx（缺失时 TestClient 会直接抛 RuntimeError）
+httpx

@@ -1,0 +1,26 @@
+{
+  "name": "knowledgegraphqa-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "test-api": "node ./scripts/test-api.js",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@ant-design/icons": "^6.1.0",
+    "antd": "^5.10.0",
+    "axios": "^1.4.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.4.0",
+    "vis-network": "^10.1.2"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.15",
+    "@vitejs/plugin-react": "^5.0.4",
+    "tailwindcss": "^4.1.15",
+    "vite": "^5.0.0"
+  }
+}
