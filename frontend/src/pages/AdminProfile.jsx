@@ -133,7 +133,7 @@ export default function AdminProfile() {
 
   const styles = {
     container: {
-      backgroundColor: "#f0f2f5",
+      backgroundColor: "var(--c-surface2)",
       minHeight: "100vh",
       padding: "20px",
     },
@@ -146,12 +146,12 @@ export default function AdminProfile() {
     title: {
       fontSize: "32px",
       fontWeight: "bold",
-      color: "#001529",
+      color: "var(--c-fg)",
       margin: 0,
     },
     card: {
-      borderRadius: "10px",
-      boxShadow: "0 2px 10px rgba(0,0,0,0.08)",
+      borderRadius: "var(--radius-lg)",
+      boxShadow: "none",
     },
     section: {
       marginBottom: "30px",
@@ -160,26 +160,26 @@ export default function AdminProfile() {
       fontSize: "18px",
       fontWeight: "600",
       marginBottom: "15px",
-      color: "#444",
+      color: "var(--c-fg)",
     },
     infoGroup: {
       marginBottom: "20px",
       padding: "15px",
-      backgroundColor: "#f5f5f5",
-      borderRadius: "8px",
+      backgroundColor: "var(--c-surface2)",
+      borderRadius: "var(--radius-md)",
     },
     label: {
       fontWeight: "600",
-      color: "#666",
+      color: "var(--c-fg-muted)",
       marginBottom: "5px",
     },
     value: {
       fontSize: "16px",
-      color: "#333",
+      color: "var(--c-fg)",
     },
     statCard: {
       marginBottom: "20px",
-      borderRadius: "8px",
+      borderRadius: "var(--radius-md)",
     },
   };
 
@@ -191,8 +191,14 @@ export default function AdminProfile() {
           <h1 style={styles.title}>管理员个人资料</h1>
           <Button
             type="primary"
-            icon={<ArrowLeftOutlined />}
-            onClick={() => navigate("/")}
+            // href 让 antd 渲染成真正的 <a>：键盘可达、支持中键与新标签；
+            // onClick 里 preventDefault 再走 SPA 路由，避免整页刷新。
+            href="/"
+            onClick={(e) => {
+              e.preventDefault();
+              navigate("/");
+            }}
+            icon={<ArrowLeftOutlined aria-hidden="true" />}
           >
             返回首页
           </Button>
@@ -225,7 +231,7 @@ export default function AdminProfile() {
                 <div style={styles.infoGroup}>
                   <div style={styles.label}>角色</div>
                   <div style={styles.value}>
-                    <Tag color="blue">系统管理员</Tag>
+                    <Tag color="default">系统管理员</Tag>
                   </div>
                 </div>
               </Col>
@@ -245,7 +251,7 @@ export default function AdminProfile() {
                     <Statistic
                       title="总用户数"
                       value={stats.total_users ?? 0}
-                      valueStyle={{ color: "#1890ff" }}
+                      valueStyle={{ color: "var(--c-primary)" }}
                     />
                   </Card>
                 </Col>
@@ -254,7 +260,7 @@ export default function AdminProfile() {
                     <Statistic
                       title="客户用户"
                       value={stats.total_customers ?? 0}
-                      valueStyle={{ color: "#52c41a" }}
+                      valueStyle={{ color: "var(--c-success)" }}
                     />
                   </Card>
                 </Col>
@@ -264,7 +270,7 @@ export default function AdminProfile() {
                       title="图谱节点"
                       value={graphStats?.nodes ?? 0}
                       suffix={graphStats ? ` / ${graphStats.relationships ?? 0} 关系` : ""}
-                      valueStyle={{ color: "#faad14" }}
+                      valueStyle={{ color: "var(--c-accent)" }}
                     />
                   </Card>
                 </Col>
@@ -273,13 +279,13 @@ export default function AdminProfile() {
                     <Statistic
                       title="系统状态"
                       value={health?.overall === "healthy" ? "正常" : (health?.overall ?? "未知")}
-                      valueStyle={{ color: health?.overall === "healthy" ? "#52c41a" : "#ff4d4f" }}
+                      valueStyle={{ color: health?.overall === "healthy" ? "var(--c-success)" : "var(--c-danger)" }}
                     />
                   </Card>
                 </Col>
               </Row>
             ) : (
-              <p style={{ color: "#999" }}>加载统计数据中...</p>
+              <p style={{ color: "var(--c-fg-faint)" }}>加载统计数据中...</p>
             )}
           </div>
 
@@ -349,7 +355,7 @@ export default function AdminProfile() {
           {/* 安全设置 */}
           <div style={styles.section}>
             <h3 style={styles.sectionTitle}>
-              <WarningOutlined style={{ marginRight: "8px", color: "#ff4d4f" }} />
+              <WarningOutlined style={{ marginRight: "8px", color: "var(--c-danger)" }} />
               账户安全
             </h3>
             

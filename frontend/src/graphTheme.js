@@ -11,36 +11,45 @@
 // ========================================
 // 节点类型 → 颜色
 // ========================================
-// 分三组，让"核心节点 / 实体 / 文本值"在视觉上一眼可分
+// 分组的意义不只是"好看"：
+//   ① 恶意软件家族（核心节点）：暖色，是图上的主角
+//   ② 实体（家族/平台/别名/类别/类型）：彩色，是真正的"实体-关系-实体"结构
+//   ③ 文本与值（句子/日期/数量）：**统一压成中性灰阶**
+//      —— 它们占全部节点的约 72%，却不是实体而是句子。给它们上彩色会
+//         把真正有信息量的实体结构淹没在噪声里。
+//
+// ⚠️ 这里的值必须是**字面颜色**（hex），不能写 var(--c-*)：
+//    vis-network 直接把这些字符串交给 canvas 的 fillStyle，
+//    canvas 不解析 CSS 变量，写了等于颜色失效。
 export const NODE_COLORS = {
-  // ① 恶意软件家族（核心节点，中英两层靠 ALIGN_WITH 相连的就是它们）
-  Virus: "#f87171",
-  Trojan: "#fb923c",
-  Worm: "#fbbf24",
-  GrayWare: "#a8a29e",
-  RiskWare: "#94a3b8",
-  HackTool: "#f472b6",
-  TestFile: "#cbd5e1",
-  JunkFile: "#e2e8f0",
-  Malware: "#ef4444",
+  // ① 恶意软件家族（核心节点）
+  Virus: "#EF4444",
+  Trojan: "#F97316",
+  Worm: "#EAB308",
+  GrayWare: "#78716C",
+  RiskWare: "#94A3B8",
+  HackTool: "#EC4899",
+  TestFile: "#A1A1AA",
+  JunkFile: "#D4D4D8",
+  Malware: "#DC2626",
 
-  // ② 实体（家族 / 平台 / 别名 / 类别）
-  Family: "#60a5fa",
-  Platform: "#34d399",
-  Alias: "#38bdf8",
-  Category: "#a78bfa",
-  MalwareType: "#818cf8",
+  // ② 实体
+  Family: "#3B82F6",
+  Platform: "#10B981",
+  Alias: "#0EA5E9",
+  Category: "#8B5CF6",
+  MalwareType: "#6366F1",
 
-  // ③ 文本与值（句子节点 / 日期 / 数量）
-  Solution: "#facc15",
-  Behavior: "#c084fc",
-  Description: "#7dd3fc",
-  DateValue: "#fca5a5",
-  CountValue: "#fdba74",
+  // ③ 文本与值（中性灰，刻意退到背景）
+  Solution: "#CBD5E1",
+  Behavior: "#CBD5E1",
+  Description: "#CBD5E1",
+  DateValue: "#E2E8F0",
+  CountValue: "#E2E8F0",
 };
 
 /** 未在配色表里的类型使用的兜底色 */
-export const FALLBACK_COLOR = "#94a3b8";
+export const FALLBACK_COLOR = "#94A3B8";
 
 /**
  * 全部节点类型（有序）
@@ -85,11 +94,23 @@ if (import.meta.env?.DEV) {
   }
 }
 
-/** 节点被选中时的高亮色 */
-export const SELECTED_COLOR = "#ff7a00";
+/**
+ * 边框语义 —— 全站统一的三种"强调"
+ *
+ * 这里刻意**不再用填充色表示选中**：节点填充色是数据（类型），
+ * 一旦被选中就改填充色，用户就丢失了"这是什么类型"的信息。
+ * 所以三种强调全部走边框宽度+颜色，填充始终保留数据类型色。
+ */
+/** 选中：近黑描边，最粗。中性色不会和任何数据类型色撞车 */
+export const SELECTED_BORDER = "#0F0F10";
+/** 跨层联动：琥珀色 —— 与全站"琥珀=跨层映射"的语义一致 */
+export const LINKED_BORDER = "#D97706";
+/** 核心节点（ALIGN_WITH 的锚点）：同样是琥珀色 */
+export const CORE_BORDER = "#D97706";
 
-/** 跨层联动时对面板对应节点的高亮色 */
-export const LINKED_COLOR = "#22d3ee";
+/** 兼容旧命名（graphTheme 之外若还引用） */
+export const SELECTED_COLOR = SELECTED_BORDER;
+export const LINKED_COLOR = LINKED_BORDER;
 
 /**
  * "文本/值"类节点
@@ -184,7 +205,7 @@ export function buildNetworkOptions(direction = "LR", extra = {}) {
       shape: "box",
       margin: 10,
       borderWidth: 1.5,
-      font: { size: 14, color: "#111827", face: "system-ui, sans-serif" },
+      font: { size: 14, color: "#0F0F10", face: "system-ui, sans-serif" },
       shadow: { enabled: true, size: 4, x: 0, y: 1, color: "rgba(0,0,0,0.08)" },
     },
     ...extra,
@@ -229,21 +250,24 @@ export function toVisData(layer, opts = {}) {
     const isSelected = selectedNorm != null && n.norm_name === selectedNorm;
     const isLinked = linkedNorm != null && n.norm_name === linkedNorm;
 
-    let border = "#ffffff";
+    // 填充色始终是数据类型色，绝不因为"选中/联动/核心"而改变 ——
+    // 三种强调只走边框，这样用户随时能看出节点是什么类型
+    let border = "#FFFFFF";
     let borderWidth = 1.5;
-    let color = baseColor;
-    if (isLinked) {
-      border = LINKED_COLOR;
+    const color = baseColor;
+
+    if (isCore) {
+      border = CORE_BORDER;
       borderWidth = 3;
+    }
+    if (isLinked) {
+      border = LINKED_BORDER;
+      borderWidth = 3.5;
     }
     if (isSelected) {
-      color = SELECTED_COLOR;
-      border = "#ffffff";
-      borderWidth = 3;
-    }
-    if (isCore && !isSelected) {
-      border = "#111827";
-      borderWidth = 3;
+      // 选中优先级最高：近黑 + 最粗
+      border = SELECTED_BORDER;
+      borderWidth = 4.5;
     }
 
     return {
@@ -256,13 +280,13 @@ export function toVisData(layer, opts = {}) {
       color: {
         background: color,
         border,
-        highlight: { background: color, border: SELECTED_COLOR },
-        hover: { background: color, border: LINKED_COLOR },
+        highlight: { background: color, border: SELECTED_BORDER },
+        hover: { background: color, border: LINKED_BORDER },
       },
       borderWidth,
       // 核心节点画大一点，突出"两层只有它相连"
       size: isCore ? 26 : 18,
-      font: { size: isCore ? 15 : 14, bold: isCore ? { color: "#111827" } : undefined },
+      font: { size: isCore ? 15 : 14, bold: isCore ? { color: "#0F0F10" } : undefined },
       title: [
         `<b>${escapeHtml(n.label)}</b>`,
         `类型: ${escapeHtml(n.type ?? "-")}`,

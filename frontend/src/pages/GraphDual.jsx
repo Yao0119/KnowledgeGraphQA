@@ -47,6 +47,7 @@ import {
 import { Network } from "vis-network";
 
 import api, { errorMessage } from "../api";
+import { color } from "../theme";
 import {
   NODE_COLORS,
   TEXT_NODE_TYPES,
@@ -114,7 +115,7 @@ export default function GraphDual() {
         }
         if (!list.length) {
           setError(
-            "图谱里没有可用于中英对照的病毒 —— 需要核心节点之间已建立 ALIGN_WITH 映射。"
+            "图谱里没有可用于中英对照的病毒。需要核心节点之间已建立 ALIGN_WITH 映射。"
           );
         }
       } catch (err) {
@@ -380,7 +381,7 @@ export default function GraphDual() {
             optionFilterProp="label"
             options={virusList.map((v) => ({
               value: v.name,
-              label: `${v.name}（${v.mal_type ?? "?"}・${v.degree} 条关系）`,
+              label: `${v.name}（${v.mal_type ?? "?"}，${v.degree} 条关系）`,
             }))}
           />
           <Button
@@ -401,11 +402,14 @@ export default function GraphDual() {
             </Space>
           </Tooltip>
           {layers?.matched ? (
-            <Tag icon={<LinkOutlined />} color="cyan">
+            // 单色主题：映射状态用中性 Tag，青色属于杂色
+            <Tag icon={<LinkOutlined aria-hidden="true" />} color="default">
               核心节点已映射（ALIGN_WITH）
             </Tag>
           ) : layers ? (
-            <Tag color="orange">该病毒未建立跨层映射</Tag>
+            // "未建立映射"是一个需要注意的状态，用中性 Tag + 文字说明，
+            // 不用橙色（颜色只保留给图谱节点与真实错误）
+            <Tag color="default">该病毒未建立跨层映射</Tag>
           ) : null}
         </Space>
       </Card>
@@ -433,11 +437,12 @@ export default function GraphDual() {
                   size="small"
                   title={
                     <Space>
-                      <Badge color="#007aff" />
+                      <Badge color="var(--c-primary)" />
                       <span>中文图谱</span>
-                      <Text type="secondary" style={{ fontWeight: 400, fontSize: 12 }}>
-                        lang = cn ・ 关系名：病毒家族 / 运行环境 / 解决方案 …
-                      </Text>
+                      {/* 用留白分组代替中间点拼接的 meta 串 */}
+                      <span style={{ fontWeight: 400, fontSize: 12, color: color.fgFaint }}>
+                        病毒家族 / 运行环境 / 解决方案
+                      </span>
                     </Space>
                   }
                   styles={{ body: { padding: 0 } }}
@@ -449,16 +454,16 @@ export default function GraphDual() {
                 </Card>
               </Col>
 
-              <Col span={12} style={{ borderLeft: "2px dashed #d9d9d9" }}>
+              <Col span={12} style={{ borderLeft: "2px dashed var(--c-border-strong)" }}>
                 <Card
                   size="small"
                   title={
                     <Space>
-                      <Badge color="#ff3b30" />
+                      <Badge color="var(--c-danger)" />
                       <span>英文图谱</span>
-                      <Text type="secondary" style={{ fontWeight: 400, fontSize: 12 }}>
-                        lang = en ・ 关系名：Family / Platform / Solution …
-                      </Text>
+                      <span style={{ fontWeight: 400, fontSize: 12, color: color.fgFaint }}>
+                        Family / Platform / Solution
+                      </span>
                     </Space>
                   }
                   styles={{ body: { padding: 0 } }}
@@ -478,8 +483,8 @@ export default function GraphDual() {
                     top: "50%",
                     left: "50%",
                     transform: "translate(-50%, -50%)",
-                    background: "#fff",
-                    border: "1px solid #d9d9d9",
+                    background: "var(--c-surface)",
+                    border: "1px solid var(--c-border)",
                     borderRadius: "50%",
                     width: 34,
                     height: 34,
@@ -489,7 +494,7 @@ export default function GraphDual() {
                     zIndex: 3,
                   }}
                 >
-                  <SwapOutlined style={{ color: "#22d3ee" }} />
+                  <SwapOutlined style={{ color: "var(--c-accent)" }} />
                 </div>
               </Tooltip>
             </Row>
@@ -497,15 +502,19 @@ export default function GraphDual() {
             {/* ---------- 核心节点映射条 ---------- */}
             <Card size="small" style={{ marginTop: 12 }}>
               <Space wrap>
-                <ApiOutlined style={{ color: "#22d3ee" }} />
+                {/* 图标用强调色：全站"琥珀=跨层映射"的语义（原来这里是旧的青色 #22d3ee） */}
+                <ApiOutlined aria-hidden="true" style={{ color: "var(--c-accent)" }} />
                 <Text strong>核心节点映射</Text>
                 {layers.matched ? (
                   <>
-                    <Tag color="#007aff">中文层</Tag>
-                    <Text code>{cnCoreLabel ?? layers.virus}</Text>
-                    <Text type="secondary">──ALIGN_WITH──▶</Text>
-                    <Tag color="#ff3b30">英文层</Tag>
-                    <Text code>{layers.virus}</Text>
+                    <Tag color="var(--c-primary)">中文层</Tag>
+                    <Text code translate="no">{cnCoreLabel ?? layers.virus}</Text>
+                    {/* 用实心单色小胶囊表示"映射关系" */}
+                    <span className="bridge-mark mono" translate="no">ALIGN_WITH →</span>
+                    {/* 英文层原来用红色 Tag —— 英文不是错误状态，红色语义不对，
+                        单色主题下也属于杂色，改成中性灰 */}
+                    <Tag color="default">英文层</Tag>
+                    <Text code translate="no">{layers.virus}</Text>
                   </>
                 ) : (
                   <Text type="secondary">
@@ -513,7 +522,9 @@ export default function GraphDual() {
                   </Text>
                 )}
                 <Text type="secondary" style={{ marginLeft: 8 }}>
-                  中文层 {graphCounts.cn?.shown ?? 0} 节点 / {graphCounts.cn?.edges ?? 0} 关系 ・
+                  中文层 {graphCounts.cn?.shown ?? 0} 节点 / {graphCounts.cn?.edges ?? 0} 关系
+                </Text>
+                <Text type="secondary">
                   英文层 {graphCounts.en?.shown ?? 0} 节点 / {graphCounts.en?.edges ?? 0} 关系
                   {(graphCounts.cn?.hidden ?? 0) + (graphCounts.en?.hidden ?? 0) > 0
                     ? `（另有 ${(graphCounts.cn?.hidden ?? 0) + (graphCounts.en?.hidden ?? 0)} 个文本节点已隐藏）`
@@ -533,8 +544,8 @@ export default function GraphDual() {
                           display: "inline-block",
                           width: 12,
                           height: 12,
-                          borderRadius: 3,
-                          background: NODE_COLORS[t] || "#94a3b8",
+                          borderRadius: "var(--radius-sm)",
+                          background: NODE_COLORS[t] || "var(--c-fg-faint)",
                           border: "1px solid rgba(0,0,0,0.15)",
                         }}
                       />
@@ -553,7 +564,7 @@ export default function GraphDual() {
                 selected ? (
                   <Space wrap>
                     <span>节点对照</span>
-                    <Tag color={selected.lang === "cn" ? "#007aff" : "#ff3b30"}>
+                    <Tag color={selected.lang === "cn" ? "var(--c-primary)" : "default"}>
                       {selected.lang === "cn" ? "点击自中文层" : "点击自英文层"}
                     </Tag>
                     <Text code>{selected.label}</Text>
@@ -574,13 +585,13 @@ export default function GraphDual() {
               ) : (
                 <Row gutter={16}>
                   <Col span={12}>
-                    <Title level={5} style={{ color: "#007aff" }}>
+                    <Title level={5} style={{ color: "var(--c-primary)" }}>
                       中文层
                     </Title>
                     {renderDetailSide("cn", "中文")}
                   </Col>
                   <Col span={12}>
-                    <Title level={5} style={{ color: "#ff3b30" }}>
+                    <Title level={5} style={{ color: "var(--c-danger)" }}>
                       英文层
                     </Title>
                     {renderDetailSide("en", "英文")}

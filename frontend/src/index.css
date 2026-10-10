@@ -1,196 +1,698 @@
-/* ---------------------------
+/* ===========================
    Tailwind v4 接入
-   v3 的 `@tailwind base/components/utilities` 指令在 v4 中已失效，
-   而且这里刻意不引入 preflight（base reset），避免重置样式影响既有的 antd 布局。
----------------------------- */
+   v3 的 `@tailwind base/components/utilities` 指令在 v4 中已失效。
+   刻意不引入 preflight（base reset）：它会重置 antd 依赖的默认样式。
+   分层顺序固定为 theme → base → components → utilities，
+   这样 Tailwind 工具类（utilities）永远能覆盖下面的 components 层。
+=========================== */
 @layer theme, base, components, utilities;
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
 
-/* ---------------------------
-   全局 Apple 风格基础
----------------------------- */
+/* ===========================
+   设计令牌（CSS 侧镜像 src/theme.js）
+   两边必须保持一致；JS 里要用值就 import { color } from "./theme"，
+   不要在组件里散落 hex。
+=========================== */
 :root {
-  /* 合并后的一份主题变量（原先有两组 :root 相互覆盖，后者静默生效） */
-  --apple-bg: #f5f5f7;
-  --apple-sidebar-bg: #f7f7f8;
-  --apple-card: rgba(255, 255, 255, 0.75);
-  --apple-border: rgba(0, 0, 0, 0.08);
-  --apple-hover: rgba(0, 0, 0, 0.04);
-  --apple-active: #e8e8e9;
-  --apple-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
-  --apple-inner-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  --apple-radius: 14px;
+  --c-bg: #f2f2f2;
+  --c-surface: #ffffff;
+  --c-surface2: #f2f2f2;
+  --c-surface3: #e5e5ea;
+
+  --c-border: rgba(0, 0, 0, 0.06);
+  --c-border-strong: rgba(0, 0, 0, 0.12);
+
+  --c-fg: #1c1c1e;
+  --c-fg-muted: #48484a;
+  /* 作正文用，白底 5.0:1 ✓（更浅的 #8A8A8E 只有 3.4:1，只能用于非文字元素） */
+  --c-fg-faint: #6e6e73;
+  --c-line-faint: #c7c7cc;
+
+  /* 白灰黑主题：主色是近黑，不是蓝 */
+  --c-primary: #1c1c1e;
+  --c-primary-hover: #2c2c2e;
+  --c-primary-soft: #e5e5ea;
+
+  /* 界面上的映射标记走单色（图谱里核心节点仍是琥珀，那属于"节点颜色"） */
+  --c-accent: #1c1c1e;
+  --c-accent-soft: #e5e5ea;
+  --c-accent-text: #ffffff;
+
+  /* 语义色只用于状态点与错误提示 */
+  --c-danger: #d70015;
+  --c-danger-dot: #ff3b30;
+  --c-danger-soft: #fde8e8;
+  --c-success: #15803d;
+  --c-success-dot: #34c759;
+  --c-warning: #8a6100;
+
+  /* 毛玻璃 */
+  --c-glass: rgba(255, 255, 255, 0.72);
+  --c-glass-strong: rgba(255, 255, 255, 0.86);
+  --c-glass-border: rgba(255, 255, 255, 0.65);
+  --c-glass-blur: saturate(180%) blur(24px);
+
+  --c-graph-bg: #fbfbfb;
+
+  --font-ui: "Fira Sans", -apple-system, BlinkMacSystemFont, "PingFang SC",
+    "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Fira Code", ui-monospace, SFMono-Regular, "Cascadia Code",
+    Consolas, "Liberation Mono", monospace;
+
+  /* 圆角：iOS 观感靠大圆角 + 同心（外层 = 内层 + 内边距） */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-pill: 999px;
+
+  /* 投影：低对比 + 大扩散。之前把投影全砍了是过度矫正 */
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 6px 20px rgba(0, 0, 0, 0.05);
+  --shadow-float: 0 4px 12px rgba(0, 0, 0, 0.06), 0 16px 40px rgba(0, 0, 0, 0.1);
+  --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+
+  --t-fast: 150ms;
+  --t-base: 220ms;
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
-/* 全局字体和滚动条 */
-body {
-  font-family: -apple-system, BlinkMacSystemFont, "San Francisco",
-               "Segoe UI", "Microsoft YaHei", sans-serif;
-  margin: 0;
-  padding: 0;
-  background-color: var(--apple-bg);
-  color: #111;
+@layer base {
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+  }
+
+  /* 页面底：灰阶 + 两团极淡光斑。
+     毛玻璃必须有"有内容的底"才看得出来，纯色底上 blur 等于没效果。
+     光斑本身也是灰阶（白/黑低透明度），不引入杂色。 */
+  body {
+    background-color: var(--c-bg);
+    background-image:
+      radial-gradient(900px 620px at 10% -8%, rgba(255, 255, 255, 0.95), transparent 62%),
+      radial-gradient(820px 520px at 96% -2%, rgba(0, 0, 0, 0.04), transparent 58%),
+      radial-gradient(760px 700px at 52% 112%, rgba(0, 0, 0, 0.035), transparent 62%);
+    background-attachment: fixed;
+    color: var(--c-fg);
+    font-family: var(--font-ui);
+    font-size: 13px;
+    line-height: 1.5;
+    /* macOS 上文字更锐利 */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* 数字列/动态数字用等宽数字，避免跳动造成布局抖动 */
+  .ant-statistic-content,
+  .ant-table-cell,
+  .num {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* 键盘焦点：全站统一，只在键盘操作时出现 */
+  :focus-visible {
+    outline: 2px solid var(--c-primary);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  .ant-btn:focus-visible,
+  .ant-menu-item:focus-visible {
+    outline-offset: -2px;
+  }
+
+  /* 标题用 balance 防止孤字，正文用 pretty */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  .panel-title,
+  .ant-card-head-title,
+  .ant-modal-title {
+    text-wrap: balance;
+  }
+  p,
+  li,
+  dd,
+  .ant-typography {
+    text-wrap: pretty;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+    .ant-btn:not(:disabled):active {
+      transform: none !important;
+    }
+  }
+
+  /* 滚动条：细、无轨道底色，贴合 iOS 观感 */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.16);
+    border: 3px solid transparent;
+    border-radius: var(--radius-pill);
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.28);
+    background-clip: content-box;
+  }
+
+  /* 触摸：消除移动端双击缩放延迟 */
+  button,
+  a,
+  [role="button"],
+  .ant-btn,
+  .ant-menu-item,
+  .ant-select-selector {
+    touch-action: manipulation;
+  }
+
+  /* 弹层内部滚动不穿透到背后页面 */
+  .ant-modal-wrap,
+  .ant-drawer-content-wrapper,
+  .ant-dropdown,
+  .ant-select-dropdown {
+    overscroll-behavior: contain;
+  }
+
+  /* antd 表格：iOS 分组列表观感（只留横向细线，去掉竖线与重表头） */
+  .ant-table-thead > tr > th {
+    background: transparent !important;
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--c-fg-faint);
+  }
+  .ant-table-tbody > tr > td {
+    border-bottom: 1px solid var(--c-border);
+  }
 }
 
-/* 滚动条更 Apple */
-::-webkit-scrollbar {
-  width: 6px;
-}
-::-webkit-scrollbar-thumb {
-  background: rgba(0,0,0,0.18);
-  border-radius: 4px;
+@layer components {
+  /* ============================================================
+     毛玻璃面板 —— 全站基础表面
+     三件套：半透明白底 + backdrop-blur + 1px 白色高光边 + 柔和投影。
+     少了高光边就会显得"糊"，少了投影就会显得"飘"。
+  ============================================================ */
+  .glass {
+    background: var(--c-glass);
+    -webkit-backdrop-filter: var(--c-glass-blur);
+    backdrop-filter: var(--c-glass-blur);
+    border: 1px solid var(--c-glass-border);
+    box-shadow: var(--shadow-card), var(--shadow-inset);
+  }
+
+  .panel {
+    background: var(--c-glass-strong);
+    -webkit-backdrop-filter: var(--c-glass-blur);
+    backdrop-filter: var(--c-glass-blur);
+    border: 1px solid var(--c-glass-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card), var(--shadow-inset);
+    overflow: hidden;
+  }
+
+  /* 面板标题行：细分割线 + 左图标 + 17px 标题 */
+  .panel-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--c-border);
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--c-fg);
+    letter-spacing: -0.01em;
+  }
+
+  /* ============================================================
+     悬浮侧边栏
+     固定在窗口内 12px 处，大圆角 + 毛玻璃 + 浮起投影。
+  ============================================================ */
+  .sidebar-float {
+    position: fixed;
+    left: 12px;
+    top: 12px;
+    bottom: 12px;
+    display: flex;
+    flex-direction: column;
+    background: var(--c-glass-strong);
+    -webkit-backdrop-filter: saturate(180%) blur(28px);
+    backdrop-filter: saturate(180%) blur(28px);
+    border: 1px solid var(--c-glass-border);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-float), var(--shadow-inset);
+    overflow: hidden;
+    z-index: 40;
+  }
+
+  .sidebar-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 12px 10px 14px;
+    flex: none;
+  }
+
+  /* 品牌方块：近黑底 + 白图标（单色主题里它是唯一的"实心重块"） */
+  .brand-tile {
+    width: 30px;
+    height: 30px;
+    flex: none;
+    display: grid;
+    place-items: center;
+    background: var(--c-primary);
+    color: #fff;
+    border-radius: 9px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+  }
+
+  .sidebar-nav {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 2px 0 8px;
+  }
+
+  /* 侧边栏底部：设置 + 用户中心（用户要求放左下角） */
+  .sidebar-foot {
+    flex: none;
+    padding: 8px;
+    border-top: 1px solid var(--c-border);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .side-action {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 10px;
+    border: 0;
+    background: transparent;
+    border-radius: var(--radius-md);
+    color: var(--c-fg-muted);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: left;
+    transition: background-color var(--t-fast) var(--ease),
+      color var(--t-fast) var(--ease);
+  }
+  .side-action:hover {
+    background: var(--c-surface3);
+    color: var(--c-fg);
+  }
+  .side-action.is-active {
+    background: var(--c-primary-soft);
+    color: var(--c-fg);
+  }
+
+  .side-user {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 7px 8px;
+    border: 0;
+    background: transparent;
+    border-radius: var(--radius-md);
+    font: inherit;
+    cursor: pointer;
+    transition: background-color var(--t-fast) var(--ease);
+  }
+  .side-user:hover {
+    background: var(--c-surface3);
+  }
+  .side-user-name {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--c-fg);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 150px;
+  }
+  .side-user-role {
+    display: block;
+    font-size: 11px;
+    color: var(--c-fg-faint);
+  }
+
+  /* 折叠态的居中：**完全自己控制**，不用 antd 的 inlineCollapsed。
+     antd 把折叠菜单排成 85px 宽，再用 `padding-left: calc(50% - 图标一半)` 居中；
+     容器宽度只要不等于它的内部预期就整体偏移（实测图标右偏 4px），
+     而且它的隐藏标签方式会和自定义 padding 打架。
+     这里：隐藏文字 → 菜单项左右各留 8px（与展开态一致）→ flex 居中。 */
+  .sidebar-nav.is-collapsed .ant-menu-title-content {
+    display: none;
+  }
+  .sidebar-nav.is-collapsed .ant-menu-item {
+    display: flex;
+    justify-content: center;
+    padding-inline: 0 !important;
+    margin-inline: 8px !important;
+  }
+  .sidebar-nav.is-collapsed .ant-menu-item .anticon {
+    margin-inline-end: 0;
+  }
+
+  /* ============================================================
+     主内容区
+     左侧留出「12 边距 + 侧边栏 + 12 间距」；右侧留出通知按钮的位置。
+  ============================================================ */
+  .app-content {
+    margin-left: 276px; /* 12 边距 + 252 侧边栏（250 内容 + 2 边框）+ 12 间距 */
+    padding: 12px 16px 24px 0;
+    min-height: 100vh;
+    transition: margin-left var(--t-base) var(--ease);
+  }
+  .app-content.is-collapsed {
+    margin-left: 106px; /* 12 + 82（80 + 2 边框）+ 12 */
+  }
+
+  /* 宽屏适配：**不再限制最大宽度**。
+     之前限了 1680px，2560 的屏幕上内容两侧各留出约 300px 空当，
+     看起来像"没适配这个显示器"。数据看板本来就应该铺满可用宽度。
+     （如需在超宽屏上收窄，把 max-width 加回来即可。） */
+  .app-inner {
+    margin: 0 auto;
+    min-height: calc(100vh - 36px); /* 12 上边距 + 24 下边距 */
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* 右上角通知按钮（顶部栏已取消，只留这一个悬浮按钮） */
+  .top-action {
+    display: flex;
+    justify-content: flex-end;
+    position: sticky;
+    top: 12px;
+    z-index: 30;
+    margin-bottom: 8px;
+    pointer-events: none;
+  }
+  .top-action > * {
+    pointer-events: auto;
+  }
+
+  .glass-btn {
+    background: var(--c-glass-strong) !important;
+    -webkit-backdrop-filter: var(--c-glass-blur);
+    backdrop-filter: var(--c-glass-blur);
+    border: 1px solid var(--c-glass-border) !important;
+    box-shadow: var(--shadow-card), var(--shadow-inset) !important;
+    color: var(--c-fg-muted) !important;
+  }
+  .glass-btn:hover {
+    background: #fff !important;
+    color: var(--c-fg) !important;
+  }
+
+
+  /* 统计数字（节点总数 / 关系总数） */
+  .metric {
+    font-family: var(--font-mono);
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    color: var(--c-fg);
+  }
+  .metric-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--c-fg-faint);
+  }
+
+  /* 状态点：只用于真实语义状态（服务连通性） */
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: var(--radius-pill);
+    flex: none;
+    display: inline-block;
+  }
+
+  /* 机器标识符：等宽是功能选择（对齐、避免 l/1/I 混淆） */
+  .mono {
+    font-family: var(--font-mono);
+    font-size: 0.95em;
+    letter-spacing: -0.01em;
+  }
+  /* 长标识符单行省略 + 悬停看全文。
+     translate="no" 必须写在元素属性上（CSS 做不到），防止浏览器自动翻译改写病毒名。 */
+  .ident {
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: bottom;
+  }
+
+  /* 跨层映射标记：单色深底 + 白字 */
+  .bridge-mark {
+    display: inline-flex;
+    align-items: center;
+    color: var(--c-accent-text);
+    background: var(--c-accent);
+    border-radius: var(--radius-sm);
+    padding: 2px 8px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  /* 图谱容器 */
+  .graph-canvas {
+    background: var(--c-graph-bg);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--c-border);
+  }
+
+  /* 键盘用户按第一下 Tab 即可跳过侧边栏 */
+  .skip-link {
+    position: absolute;
+    left: -9999px;
+    top: 8px;
+    z-index: 2000;
+    padding: 8px 14px;
+    background: var(--c-primary);
+    color: #fff;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .skip-link:focus {
+    left: 8px;
+  }
+
+  /* ============================================================
+     首页（系统概览）
+     排版参考用户提供的 homework.html：hero 区 → 居中区块标题 → 等宽网格卡片，
+     每张卡片右上角一个大号编号、悬停上浮。
+     配色不照搬参考页（那是深色 + 紫色渐变），这里沿用项目的 iOS 黑白灰毛玻璃。
+  ============================================================ */
+  .home-hero {
+    text-align: center;
+    padding: 36px 20px 28px;
+  }
+  .home-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--c-border-strong);
+    background: var(--c-glass);
+    -webkit-backdrop-filter: var(--c-glass-blur);
+    backdrop-filter: var(--c-glass-blur);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--c-fg-muted);
+  }
+  .home-title {
+    font-size: clamp(24px, 3vw, 34px);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.25;
+    margin: 18px 0 10px;
+    color: var(--c-fg);
+  }
+  .home-sub {
+    max-width: 760px;
+    margin: 0 auto;
+    font-size: 14px;
+    line-height: 1.85;
+    color: var(--c-fg-muted);
+  }
+  .home-stats {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 48px;
+    margin-top: 26px;
+  }
+  .home-stat-value {
+    font-family: var(--font-mono);
+    font-size: 26px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    color: var(--c-fg);
+  }
+  .home-stat-label {
+    margin-top: 2px;
+    font-size: 12px;
+    color: var(--c-fg-faint);
+  }
+  .section-title {
+    text-align: center;
+    margin: 8px 0 20px;
+  }
+  .section-title h2 {
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 0 0 6px;
+    color: var(--c-fg);
+  }
+  .section-title p {
+    margin: 0;
+    font-size: 13px;
+    color: var(--c-fg-faint);
+  }
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+    margin-bottom: 8px;
+  }
+  .feature-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 24px 26px 22px;
+    min-height: 216px;
+    border-radius: var(--radius-xl);
+    background: var(--c-glass-strong);
+    -webkit-backdrop-filter: var(--c-glass-blur);
+    backdrop-filter: var(--c-glass-blur);
+    border: 1px solid var(--c-glass-border);
+    box-shadow: var(--shadow-card), var(--shadow-inset);
+    cursor: pointer;
+    text-align: left;
+    font: inherit;
+    color: inherit;
+    overflow: hidden;
+    transition: transform var(--t-base) var(--ease),
+      box-shadow var(--t-base) var(--ease), border-color var(--t-base) var(--ease);
+  }
+  .feature-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-float), var(--shadow-inset);
+    border-color: var(--c-border-strong);
+  }
+  .feature-card:active {
+    transform: translateY(-1px);
+  }
+  /* 大号编号：参考页卡片的标志性元素，这里用极浅灰 + 等宽数字，
+     让它当排版元素而不是抢内容的注意力 */
+  .feature-num {
+    position: absolute;
+    top: 16px;
+    right: 22px;
+    font-family: var(--font-mono);
+    font-size: 34px;
+    font-weight: 600;
+    line-height: 1;
+    color: var(--c-line-faint);
+    font-variant-numeric: tabular-nums;
+    user-select: none;
+    pointer-events: none;
+  }
+  .feature-icon {
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    border-radius: var(--radius-md);
+    background: var(--c-surface3);
+    color: var(--c-fg);
+    font-size: 19px;
+    flex: none;
+  }
+  .feature-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--c-fg);
+    letter-spacing: -0.01em;
+  }
+  .feature-desc {
+    font-size: 13px;
+    line-height: 1.75;
+    color: var(--c-fg-muted);
+  }
+  .feature-more {
+    margin-top: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--c-fg);
+  }
+  .feature-card:hover .feature-more {
+    gap: 10px;
+  }
 }
 
-/* 背景渐变动画（保留你的，但柔化） */
-@keyframes gradientShift {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-.bg-animated-gradient {
-  background: linear-gradient(270deg, #f5f5f7, #f0f0f2, #eaeaef, #f6f6f7);
-  background-size: 600% 600%;
-  animation: gradientShift 18s ease infinite;
-}
 
-/* ---------------------------
-   AntD 菜单（Apple 风格化）
----------------------------- */
-.ant-menu {
-  background: var(--apple-sidebar-bg) !important;
-  border: none !important;
-  font-size: 15px;
-  font-weight: 500;
-}
+@layer utilities {
+  /* 页面载入：只做一次编排，不给每个卡片都来一遍 fade-up */
+  .enter {
+    animation: enter 380ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  }
+  @keyframes enter {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
 
-/* 菜单项 */
-.ant-menu-item {
-  border-radius: var(--apple-radius) !important;
-  margin: 6px 0 !important;
-  padding-left: 16px !important;
+  /* 只过渡真正会变的属性 —— 绝不写 transition: all */
+  .ant-btn {
+    transition: background-color var(--t-fast) var(--ease),
+      border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease),
+      transform 90ms var(--ease);
+  }
+  /* 按下缩放固定 0.96（iOS 的按压反馈） */
+  .ant-btn:not(:disabled):active {
+    transform: scale(0.96);
+  }
 }
-
-/* hover 效果 */
-.ant-menu-item:hover {
-  background: var(--apple-hover) !important;
-}
-
-/* 选中效果（Apple 风） */
-.ant-menu-item-selected {
-  background: var(--apple-active) !important;
-  font-weight: 600 !important;
-  color: #000 !important;
-  border-radius: var(--apple-radius) !important;
-}
-
-/* 图标颜色柔化 */
-.ant-menu-item-icon {
-  color: #444 !important;
-}
-.ant-menu-item:hover .ant-menu-item-icon {
-  color: #000 !important;
-}
-.ant-menu-item-selected .ant-menu-item-icon {
-  color: #000 !important;
-}
-
-/* ---------------------------
-   Apple 玻璃态（可选）
----------------------------- */
-.apple-glass {
-  backdrop-filter: blur(22px);
-  background: rgba(255, 255, 255, 0.55);
-  border-right: 1px solid var(--apple-border);
-}
-
-/* ---------------------------
-   动画（更柔和）
----------------------------- */
-* {
-  transition: all 0.22s cubic-bezier(.21, .75, .34, .99);
-}
-/* --- Apple UI 基础色系：已合并到文件顶部的 :root --- */
-
-/* --- Apple Card --- */
-.apple-card {
-  background: var(--apple-card);
-  backdrop-filter: blur(18px);
-  border: 1px solid var(--apple-border);
-  border-radius: 18px !important;
-  box-shadow: var(--apple-shadow), var(--apple-inner-shadow);
-  transition: 0.3s ease;
-}
-
-.apple-card:hover {
-  background: rgba(255,255,255,0.9);
-}
-
-/* --- Apple 按钮样式 --- */
-.apple-btn {
-  border-radius: 10px !important;
-  padding: 4px 14px !important;
-  background: white !important;
-  border: 1px solid var(--apple-border) !important;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
-}
-
-.apple-btn:hover {
-  background: #fafafa !important;
-}
-
-/* --- Apple 表格 --- */
-.apple-table .ant-table {
-  border-radius: 16px !important;
-  overflow: hidden !important;
-  background: white !important;
-}
-
-.apple-table .ant-table-thead > tr > th {
-  background: #fafafa !important;
-  border-bottom: 1px solid #e5e7eb !important;
-}
-
-/* --- Apple 全屏柔光 --- */
-.apple-fullscreen {
-  backdrop-filter: blur(24px);
-  background: rgba(255,255,255,0.7);
-}
-
-/* --- Apple 图形容器 --- */
-.apple-graph-bg {
-  background: linear-gradient(135deg, #ffffff, #f0f0f5);
-  border: 1px solid #e5e7eb;
-  border-radius: 16px;
-}
-/* 图谱背景及布局 */
-.vis-network {
-  background-color: #f5f5f7;
-}
-
-/* Table 样式 */
-.ant-table {
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-/* Modal圆角优化 */
-.ant-modal {
-  border-radius: 12px;
-}
-
-/* 按钮阴影 */
-.ant-btn {
-  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-}
-
-/* ---------------------------
-   全局动画
-   原先把 @keyframes fadeIn 写在 VirusDetection.jsx 的 <style jsx> 里，
-   但 styled-jsx 并未安装，那段样式从未生效（元素上的 animation: fadeIn 是空引用）。
----------------------------- */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-

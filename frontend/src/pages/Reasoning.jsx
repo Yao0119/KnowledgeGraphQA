@@ -46,13 +46,16 @@ export default function Reasoning() {
 
   return (
     <div
+      className="panel"
       style={{
         position: "relative",
-        height: "100vh",
+        // 用 flex 填充外壳剩下的高度，不硬编码 100vh 减法（外壳上还有状态条）
+        flex: "1 1 auto",
+        minHeight: 320,
         display: "flex",
         flexDirection: "column",
-        background: "#f9fafb",
         overflow: "hidden",
+        marginTop: 4,
       }}
     >
       {/* 内容区 */}
@@ -69,9 +72,9 @@ export default function Reasoning() {
           style={{
             maxWidth: 800,
             margin: "0 auto",
-            background: "#fff",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
-            borderRadius: 12,
+            background: "var(--c-surface)",
+            boxShadow: "0 2px 8px var(--c-border)",
+            borderRadius: "var(--radius-lg)",
           }}
         >
           {history.length > 0 ? (
@@ -79,10 +82,10 @@ export default function Reasoning() {
               <div
                 key={idx}
                 style={{
-                  background: "#f3f4f6",
-                  borderRadius: 8,
+                  background: "var(--c-surface2)",
+                  borderRadius: "var(--radius-md)",
                   padding: "12px 16px",
-                  color: "#111827",
+                  color: "var(--c-fg)",
                   fontSize: 15,
                   lineHeight: 1.6,
                   marginBottom: 12,
@@ -95,33 +98,34 @@ export default function Reasoning() {
               </div>
             ))
           ) : (
-            <p style={{ color: "#9ca3af", textAlign: "center", margin: 0 }}>
+            <p style={{ color: "var(--c-fg-faint)", textAlign: "center", margin: 0 }}>
               👇 请输入你的推理问题，系统将自动分析推理
             </p>
           )}
 
           {loading && (
-            <p style={{ color: "#6b7280", textAlign: "center", margin: 0 }}>
+            <p style={{ color: "var(--c-fg-muted)", textAlign: "center", margin: 0 }}>
               <LoadingOutlined spin /> 正在结合知识图谱推理…
             </p>
           )}
         </Card>
       </div>
 
-      {/* 底部输入区 */}
+      {/* 底部输入区
+          原来是 position:fixed + left:0/right:0：相对视口定位会脱离外壳的左偏移，
+          输入栏会横跨到悬浮侧边栏底下。sticky 留在文档流里，宽度自动跟随面板。 */}
       <div
         style={{
-          position: "fixed",
-          left: 0,
-          right: 0,
+          position: "sticky",
           bottom: 0,
-          background: "#ffffff",
-          borderTop: "1px solid #e5e7eb",
-          padding: "14px 18px",
+          background: "var(--c-glass-strong)",
+          backdropFilter: "var(--c-glass-blur)",
+          WebkitBackdropFilter: "var(--c-glass-blur)",
+          borderTop: "1px solid var(--c-border)",
+          padding: "12px 16px",
           display: "flex",
           justifyContent: "center",
-          zIndex: 1000,
-          boxShadow: "0 -2px 6px rgba(0,0,0,0.05)",
+          zIndex: 10,
         }}
       >
         <div style={{ width: "100%", maxWidth: 960, position: "relative" }}>
@@ -130,7 +134,7 @@ export default function Reasoning() {
             onChange={(e) => setQuestion(e.target.value)}
             rows={1}
             autoSize={{ minRows: 1, maxRows: 6 }}
-            placeholder="请输入你的推理问题..."
+            placeholder="请输入你的推理问题…"
             onPressEnter={(e) => {
               if (!e.shiftKey) {
                 e.preventDefault();
@@ -140,12 +144,12 @@ export default function Reasoning() {
             disabled={loading}
             style={{
               paddingRight: 56,
-              borderRadius: 12,
+              borderRadius: "var(--radius-lg)",
               resize: "none",
-              border: "2px solid #60a5fa",
-              borderBottom: "3px solid #2563eb",
-              boxShadow: "0 0 6px rgba(59,130,246,0.15)",
-              transition: "all 0.25s ease-in-out",
+              border: "2px solid var(--c-border-strong)",
+              borderBottom: "3px solid var(--c-fg)",
+              boxShadow: "none",
+              transition: "background-color 220ms cubic-bezier(0.22,0.61,0.36,1), border-color 220ms cubic-bezier(0.22,0.61,0.36,1), box-shadow 220ms cubic-bezier(0.22,0.61,0.36,1)",
               fontSize: "15px",
             }}
           />
@@ -164,7 +168,7 @@ export default function Reasoning() {
               background: "transparent",
               cursor: loading ? "not-allowed" : "pointer",
               padding: 8,
-              borderRadius: 8,
+              borderRadius: "var(--radius-md)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -172,9 +176,9 @@ export default function Reasoning() {
             }}
           >
             {loading ? (
-              <LoadingOutlined style={{ fontSize: 18, color: "#9ca3af" }} spin />
+              <LoadingOutlined style={{ fontSize: 18, color: "var(--c-fg-faint)" }} spin />
             ) : (
-              <SendOutlined style={{ fontSize: 20, color: "#2563eb" }} />
+              <SendOutlined style={{ fontSize: 20, color: "var(--c-primary)" }} />
             )}
           </button>
         </div>

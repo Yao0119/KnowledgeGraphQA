@@ -1,9 +1,19 @@
 <!doctype html>
-<html>
+<!-- lang 之前是空的：中文界面没有声明语言，屏幕阅读器会用英文发音规则读中文 -->
+<html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>KnowledgeGraphQA</title>
+    <!-- 移动端浏览器地址栏配色，与页面底色一致 -->
+    <meta name="theme-color" content="#F8FAFC" />
+    <meta name="color-scheme" content="light" />
+    <meta name="description" content="恶意软件知识图谱问答与预测系统" />
+    <!-- 内联 SVG 图标：原来没有 favicon，每次加载都会产生一条 404 -->
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%231E40AF'/><path d='M8 8.5 13.5 14M24 8.5 18.5 14M8 23.5 13.5 18M24 23.5 18.5 18' stroke='%2393C5FD' stroke-width='1.8' fill='none'/><circle cx='6' cy='7' r='2.8' fill='%2393C5FD'/><circle cx='26' cy='7' r='2.8' fill='%2393C5FD'/><circle cx='6' cy='25' r='2.8' fill='%2393C5FD'/><circle cx='26' cy='25' r='2.8' fill='%2393C5FD'/><circle cx='16' cy='16' r='4.2' fill='white'/></svg>"
+    />
+    <title>知识图谱安全分析平台</title>
   </head>
   <body>
     <div id="root"></div>

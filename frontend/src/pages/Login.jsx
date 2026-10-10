@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Input, Button, message, Checkbox, Row, Col } from "antd";
 import { UserOutlined, LockOutlined, RightOutlined } from "@ant-design/icons";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 
 import api, { setSession, errorMessage } from "../api";
 
@@ -53,7 +53,7 @@ export default function Login() {
     container: {
       minHeight: "100vh",
       width: "100%",
-      backgroundColor: "#f2f2f7",
+      backgroundColor: "var(--c-bg)",
       display: "flex",
       justifyContent: "center",
       alignItems: "center",
@@ -65,37 +65,37 @@ export default function Login() {
     card: {
       width: "100%",
       maxWidth: "400px",
-      backgroundColor: "#ffffff",
-      borderRadius: "20px",
+      backgroundColor: "var(--c-surface)",
+      borderRadius: "var(--radius-lg)",
       boxShadow: "0 10px 40px rgba(0,0,0,0.08)",
       padding: "40px",
       textAlign: "center",
-      border: "1px solid rgba(0,0,0,0.05)",
+      border: "1px solid var(--c-border)",
       display: "block", // 显式设置
       zIndex: 100,
     },
     logo: {
       width: "70px",
       height: "70px",
-      backgroundColor: "#007aff",
-      borderRadius: "16px",
+      backgroundColor: "var(--c-primary)",
+      borderRadius: "var(--radius-lg)",
       margin: "0 auto 24px auto",
       display: "flex",
       justifyContent: "center",
       alignItems: "center",
       color: "white",
       fontSize: "30px",
-      boxShadow: "0 8px 20px rgba(0, 122, 255, 0.25)",
+      boxShadow: "none",
     },
     title: {
       fontSize: "24px",
       fontWeight: "700",
-      color: "#000",
+      color: "var(--c-fg)",
       marginBottom: "8px",
     },
     subtitle: {
       fontSize: "14px",
-      color: "#8e8e93",
+      color: "var(--c-fg-muted)",
       marginBottom: "32px",
     },
     inputWrapper: {
@@ -105,36 +105,36 @@ export default function Login() {
     label: {
       fontSize: "12px",
       fontWeight: "600",
-      color: "#8e8e93",
+      color: "var(--c-fg-muted)",
       marginBottom: "6px",
       display: "block",
       marginLeft: "4px",
     },
     input: {
       height: "44px",
-      borderRadius: "10px",
-      backgroundColor: "#f2f2f7",
-      border: "1px solid rgba(0,0,0,0.05)",
+      borderRadius: "var(--radius-lg)",
+      backgroundColor: "var(--c-bg)",
+      border: "1px solid var(--c-border)",
       padding: "0 12px",
       fontSize: "16px",
     },
     button: {
       height: "44px",
-      borderRadius: "10px",
-      backgroundColor: "#007aff",
+      borderRadius: "var(--radius-lg)",
+      backgroundColor: "var(--c-primary)",
       border: "none",
       fontSize: "16px",
       fontWeight: "600",
       marginTop: "24px",
-      boxShadow: "0 4px 12px rgba(0, 122, 255, 0.2)",
+      boxShadow: "none",
     },
     footer: {
       marginTop: "24px",
       fontSize: "14px",
-      color: "#8e8e93",
+      color: "var(--c-fg-muted)",
     },
     link: {
-      color: "#007aff",
+      color: "var(--c-primary)",
       fontWeight: "500",
     }
   };
@@ -150,9 +150,17 @@ export default function Login() {
 
         <div onKeyDown={handleKeyDown}>
           <div style={styles.inputWrapper}>
-            <label style={styles.label}>用户名</label>
+            {/* label 必须与控件关联（htmlFor/id），否则点击标签不会聚焦输入框，
+                屏幕阅读器也读不出"这个输入框叫什么" */}
+            <label style={styles.label} htmlFor="login-username">用户名</label>
             <Input
-              placeholder="请输入用户名"
+              id="login-username"
+              name="username"
+              // 让密码管理器能正确填充；用户名关掉拼写检查
+              autoComplete="username"
+              spellCheck={false}
+              // 提示文案以省略号结尾，表示"这是示例，不是值"
+              placeholder="请输入用户名…"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               style={styles.input}
@@ -160,9 +168,12 @@ export default function Login() {
           </div>
 
           <div style={styles.inputWrapper}>
-            <label style={styles.label}>密码</label>
+            <label style={styles.label} htmlFor="login-password">密码</label>
             <Input.Password
-              placeholder="请输入密码"
+              id="login-password"
+              name="password"
+              autoComplete="current-password"
+              placeholder="请输入密码…"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               style={styles.input}
@@ -180,7 +191,9 @@ export default function Login() {
           </Button>
 
           <div style={styles.footer}>
-            还没有账号？ <a href="/register" style={styles.link}>立即注册</a>
+            {/* 原先是 <a href>：会触发整页刷新、丢掉 SPA 状态。
+                换成 <Link> 才是站内导航（也支持中键/新标签） */}
+            还没有账号？ <Link to="/register" style={styles.link}>立即注册</Link>
           </div>
         </div>
       </div>

@@ -103,8 +103,8 @@ export default function VirusDetection() {
 
       <Card 
         style={{ 
-          borderRadius: '20px', 
-          boxShadow: '0 10px 30px rgba(0,0,0,0.05)',
+          borderRadius: "var(--radius-lg)", 
+          boxShadow: '0 10px 30px var(--c-border)',
           border: 'none',
           padding: '20px'
         }}
@@ -114,13 +114,13 @@ export default function VirusDetection() {
             width: '120px', 
             height: '120px', 
             borderRadius: '30px', 
-            background: '#f5f5f7', 
+            background: 'var(--c-bg)', 
             display: 'flex', 
             justifyContent: 'center', 
             alignItems: 'center',
             margin: '0 auto 24px auto',
-            color: loading ? '#007aff' : '#333',
-            transition: 'all 0.3s ease'
+            color: loading ? 'var(--c-primary)' : '#333',
+            transition: "background-color 220ms cubic-bezier(0.22,0.61,0.36,1), border-color 220ms cubic-bezier(0.22,0.61,0.36,1), box-shadow 220ms cubic-bezier(0.22,0.61,0.36,1)"
           }}>
             {loading ? <ScanOutlined style={{ fontSize: '48px' }} spin /> : <BugOutlined style={{ fontSize: '48px' }} />}
           </div>
@@ -146,13 +146,13 @@ export default function VirusDetection() {
               onClick={handleScan}
               loading={loading}
               style={{ 
-                borderRadius: '12px', 
+                borderRadius: "var(--radius-lg)", 
                 height: '50px', 
                 padding: '0 40px',
                 fontSize: '16px',
                 fontWeight: 600,
-                backgroundColor: '#007aff',
-                boxShadow: '0 4px 14px rgba(0,122,255,0.3)'
+                backgroundColor: 'var(--c-primary)',
+                boxShadow: "none"
               }}
             >
               开始病毒检测
@@ -161,7 +161,7 @@ export default function VirusDetection() {
 
           {loading && (
             <div style={{ marginTop: '24px', maxWidth: '400px', margin: '24px auto 0' }}>
-              <Progress percent={progress} status="active" strokeColor="#007aff" />
+              <Progress percent={progress} status="active" strokeColor="var(--c-primary)" />
               <Text type="secondary">正在分析文件特征...</Text>
             </div>
           )}
@@ -173,23 +173,25 @@ export default function VirusDetection() {
               display: 'flex', 
               alignItems: 'center', 
               padding: '20px', 
-              borderRadius: '16px', 
-              background: scanResult.is_malicious ? '#fff1f0' : '#f6ffed',
-              border: `1px solid ${scanResult.is_malicious ? '#ffa39e' : '#b7eb8f'}`,
+              borderRadius: "var(--radius-lg)", 
+              // 检测结果是**语义状态**，用令牌里的成功/危险色（原来用的是
+              // antd 4 预设色 #fff1f0/#f6ffed/#ffa39e/#b7eb8f，属于离色板杂色）
+              background: scanResult.is_malicious ? 'var(--c-danger-soft)' : 'var(--c-success-soft)',
+              border: `1px solid ${scanResult.is_malicious ? 'var(--c-danger)' : 'var(--c-success)'}`,
               marginBottom: '32px'
             }}>
               {scanResult.is_malicious ? 
-                <WarningOutlined style={{ fontSize: '24px', color: '#f5222d', marginRight: '16px' }} /> : 
-                <CheckCircleOutlined style={{ fontSize: '24px', color: '#52c41a', marginRight: '16px' }} />
+                <WarningOutlined style={{ fontSize: '24px', color: "var(--c-danger)", marginRight: '16px' }} /> : 
+                <CheckCircleOutlined style={{ fontSize: '24px', color: "var(--c-success)", marginRight: '16px' }} />
               }
               <div>
-                <Title level={4} style={{ margin: 0, color: scanResult.is_malicious ? '#cf1322' : '#389e0d' }}>
+                <Title level={4} style={{ margin: 0, color: scanResult.is_malicious ? 'var(--c-danger)' : 'var(--c-success)' }}>
                   {scanResult.is_malicious ? '发现恶意软件' : '未发现威胁'}
                 </Title>
                 <Text>{scanResult.summary}</Text>
               </div>
               <div style={{ marginLeft: 'auto' }}>
-                <Tag color={scanResult.is_malicious ? 'red' : 'green'} style={{ fontSize: '14px', padding: '4px 12px', borderRadius: '8px' }}>
+                <Tag color={scanResult.is_malicious ? 'red' : 'green'} style={{ fontSize: '14px', padding: '4px 12px', borderRadius: "var(--radius-md)" }}>
                   威胁等级: {scanResult.threat_level}
                 </Tag>
               </div>
@@ -202,9 +204,9 @@ export default function VirusDetection() {
               pagination={false}
               rowKey="engine"
               style={{ 
-                borderRadius: '12px', 
+                borderRadius: "var(--radius-lg)", 
                 overflow: 'hidden',
-                border: '1px solid #f0f0f0'
+                border: '1px solid var(--c-surface2)'
               }}
             />
           </div>

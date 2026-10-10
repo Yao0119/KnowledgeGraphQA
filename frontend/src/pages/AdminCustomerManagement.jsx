@@ -180,7 +180,7 @@ export default function AdminCustomerManagement() {
 
   return (
     <div style={styles.container}>
-      <Card style={{ borderRadius: "10px", boxShadow: "0 2px 10px rgba(0,0,0,0.08)" }}>
+      <Card style={{ borderRadius: "var(--radius-lg)", boxShadow: "none" }}>
         {/* 头部 */}
         <div style={styles.header}>
           <h2 style={styles.title}>客户管理</h2>
@@ -207,7 +207,7 @@ export default function AdminCustomerManagement() {
         </div>
 
         {/* 统计信息 */}
-        <div style={{ marginBottom: "20px", padding: "15px", backgroundColor: "#f0f2f5", borderRadius: "8px" }}>
+        <div style={{ marginBottom: "20px", padding: "15px", backgroundColor: "var(--c-surface2)", borderRadius: "var(--radius-md)" }}>
           <span style={{ marginRight: "30px" }}>
             <strong>总客户数：</strong> {customers.length}
           </span>
@@ -235,7 +235,7 @@ export default function AdminCustomerManagement() {
       >
         <div>
             {/* 只读信息 */}
-            <div style={{ marginBottom: "20px", padding: "15px", backgroundColor: "#f5f5f5", borderRadius: "8px" }}>
+            <div style={{ marginBottom: "20px", padding: "15px", backgroundColor: "var(--c-surface2)", borderRadius: "var(--radius-md)" }}>
               <div style={{ marginBottom: "10px" }}>
                 <span style={{ fontWeight: 600 }}>用户名：</span> {selectedCustomer?.username}
               </div>

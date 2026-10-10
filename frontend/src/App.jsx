@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
+import Home from "./pages/Home";
 import GraphManager from "./pages/GraphManager";
 import GraphDual from "./pages/GraphDual";
 import QA from "./pages/QA";
@@ -43,7 +44,10 @@ export default function App() {
             </ProtectedRoute>
           }
         >
-          <Route index element={<Navigate to="graph" replace />} />
+          {/* 首页就是"系统概览"。
+              原来这里是 <Navigate to="graph" replace />，导致侧边栏的
+              「系统概览」和「知识图谱管理」进的是同一个页面（用户反馈的"重复了"）。 */}
+          <Route index element={<Home />} />
           <Route path="graph" element={<GraphManager />} />
           {/* 中英双层对照图谱：左右两个面板分别渲染 cn / en 层，核心节点跨层映射 */}
           <Route path="graph-dual" element={<GraphDual />} />

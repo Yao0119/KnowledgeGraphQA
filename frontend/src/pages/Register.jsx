@@ -87,36 +87,36 @@ export default function Register() {
       display: "flex",
       justifyContent: "center",
       alignItems: "center",
-      backgroundColor: "#f0f2f5",
+      backgroundColor: "var(--c-surface2)",
       padding: "20px",
     },
     card: {
       width: "600px",
       maxWidth: "100%",
-      backgroundColor: "#fff",
-      borderRadius: "15px",
+      backgroundColor: "var(--c-surface)",
+      borderRadius: "var(--radius-lg)",
       boxShadow: "0 15px 40px rgba(0,0,0,0.15)",
       padding: "40px",
     },
     title: {
       fontSize: "28px",
       fontWeight: "bold",
-      color: "#333",
+      color: "var(--c-fg)",
       marginBottom: "10px",
       textAlign: "center",
     },
     subtitle: {
-      color: "#888",
+      color: "var(--c-fg-faint)",
       marginBottom: "30px",
       textAlign: "center",
     },
     inputStyle: {
       height: "40px",
-      borderRadius: "6px",
+      borderRadius: "var(--radius-md)",
     },
     btnStyle: {
       height: "40px",
-      borderRadius: "6px",
+      borderRadius: "var(--radius-md)",
       marginTop: "20px",
       fontWeight: "bold",
     },
@@ -126,7 +126,7 @@ export default function Register() {
     label: {
       display: "block",
       marginBottom: "6px",
-      color: "#555",
+      color: "var(--c-fg-muted)",
       fontSize: "13px",
       fontWeight: "500",
     },
@@ -153,7 +153,7 @@ export default function Register() {
               <div style={styles.formGroup}>
                 <label style={styles.label}>用户名 *</label>
                 <Input
-                  prefix={<UserOutlined style={{ color: "#bfbfbf" }} />}
+                  prefix={<UserOutlined style={{ color: "var(--c-fg-faint)" }} />}
                   placeholder="输入用户名"
                   value={form1Data.username}
                   onChange={(e) => setForm1Data({ ...form1Data, username: e.target.value })}
@@ -164,7 +164,7 @@ export default function Register() {
               <div style={styles.formGroup}>
                 <label style={styles.label}>邮箱 *</label>
                 <Input
-                  prefix={<MailOutlined style={{ color: "#bfbfbf" }} />}
+                  prefix={<MailOutlined style={{ color: "var(--c-fg-faint)" }} />}
                   type="email"
                   placeholder="输入邮箱地址"
                   value={form1Data.email}
@@ -176,7 +176,7 @@ export default function Register() {
               <div style={styles.formGroup}>
                 <label style={styles.label}>密码 *</label>
                 <Input.Password
-                  prefix={<LockOutlined style={{ color: "#bfbfbf" }} />}
+                  prefix={<LockOutlined style={{ color: "var(--c-fg-faint)" }} />}
                   placeholder="至少6个字符"
                   value={form1Data.password}
                   onChange={(e) => setForm1Data({ ...form1Data, password: e.target.value })}
@@ -187,7 +187,7 @@ export default function Register() {
               <div style={styles.formGroup}>
                 <label style={styles.label}>确认密码 *</label>
                 <Input.Password
-                  prefix={<LockOutlined style={{ color: "#bfbfbf" }} />}
+                  prefix={<LockOutlined style={{ color: "var(--c-fg-faint)" }} />}
                   placeholder="再次输入密码"
                   value={form1Data.confirmPassword}
                   onChange={(e) => setForm1Data({ ...form1Data, confirmPassword: e.target.value })}
@@ -204,8 +204,8 @@ export default function Register() {
                 下一步
               </Button>
 
-              <div style={{ marginTop: "20px", textAlign: "center", color: "#888" }}>
-                已有账号？ <a href="/login" style={{ color: "#1890ff" }}>返回登录</a>
+              <div style={{ marginTop: "20px", textAlign: "center", color: "var(--c-fg-faint)" }}>
+                已有账号？ <a href="/login" style={{ color: "var(--c-primary)" }}>返回登录</a>
               </div>
             </div>
           ) : (
@@ -223,7 +223,7 @@ export default function Register() {
               <div style={styles.formGroup}>
                 <label style={styles.label}>联系电话</label>
                 <Input
-                  prefix={<PhoneOutlined style={{ color: "#bfbfbf" }} />}
+                  prefix={<PhoneOutlined style={{ color: "var(--c-fg-faint)" }} />}
                   placeholder="输入联系电话"
                   value={form2Data.phone}
                   onChange={(e) => setForm2Data({ ...form2Data, phone: e.target.value })}
@@ -255,7 +255,7 @@ export default function Register() {
                 <Button
                   block
                   onClick={() => setCurrent(0)}
-                  style={{ height: "40px", borderRadius: "6px" }}
+                  style={{ height: "40px", borderRadius: "var(--radius-md)" }}
                 >
                   上一步
                 </Button>
@@ -264,13 +264,13 @@ export default function Register() {
                   block
                   loading={loading}
                   onClick={handleRegisterStep2}
-                  style={{ height: "40px", borderRadius: "6px", fontWeight: "bold" }}
+                  style={{ height: "40px", borderRadius: "var(--radius-md)", fontWeight: "bold" }}
                 >
                   完成注册
                 </Button>
               </div>
 
-              <div style={{ marginTop: "20px", textAlign: "center", color: "#888", fontSize: "12px" }}>
+              <div style={{ marginTop: "20px", textAlign: "center", color: "var(--c-fg-faint)", fontSize: "12px" }}>
                 注册后您可以随时编辑这些信息
               </div>
             </div>

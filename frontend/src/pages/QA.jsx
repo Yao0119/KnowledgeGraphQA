@@ -65,12 +65,17 @@ export default function QA() {
       </style>
 
       <div
+        className="panel"
         style={{
           position: "relative",
           display: "flex",
           flexDirection: "column",
-          height: "calc(100vh - 56px)",
-          backgroundColor: "#f8fafc",
+          // 用 flex 填充外壳剩下的高度，而不是 calc(100vh - Npx)：
+          // 外壳上还有状态条，任何硬编码的减法都会算错，底部输入栏会被挤出视口。
+          flex: "1 1 auto",
+          minHeight: 320,
+          overflow: "hidden",
+          marginTop: 4,
         }}
       >
         {/* 聊天区域 */}
@@ -79,9 +84,32 @@ export default function QA() {
             flex: 1,
             overflowY: "auto",
             padding: 16,
-            paddingBottom: 100,
+            paddingBottom: 24,
           }}
         >
+          {/* 空状态：原来没有消息时就是一大片空白，看不出这个页面是干什么的 */}
+          {messages.length === 0 && (
+            <div
+              style={{
+                height: "100%",
+                display: "grid",
+                placeItems: "center",
+                textAlign: "center",
+                padding: 24,
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 600, color: "var(--c-fg-muted)" }}>
+                  问点什么吧
+                </div>
+                <div style={{ marginTop: 6, fontSize: 13, color: "var(--c-fg-faint)", lineHeight: 1.7 }}>
+                  答案来自 Neo4j 图谱检索，例如：
+                  <br />
+                  RiskWare/MacOS.Apfell 有哪些典型变种？
+                </div>
+              </div>
+            </div>
+          )}
           {messages.map((msg, idx) => (
             <div
               key={idx}
@@ -96,19 +124,20 @@ export default function QA() {
                 style={{
                   maxWidth: "72%",
                   padding: "10px 14px",
-                  borderRadius: 18,
+                  borderRadius: "var(--radius-lg)",
 
-                  // 🍏 Apple 风光感气泡
+                  // 气泡用实心色，不用渐变：
+                  //   1. 渐变是模板化的视觉痕迹；
+                  //   2. 原来的 #0ea5e9 是 Tailwind 蓝，与全站主色 #1E40AF 不是同一个色，
+                  //      违反"单一强调色"一致性。
                   background:
+                    msg.role === "user" ? "var(--c-primary)" : "var(--c-surface)",
+                  // 层级用边框表达，不用投影；用户气泡与助手气泡靠底色区分
+                  border:
                     msg.role === "user"
-                      ? "linear-gradient(145deg, #0ea5e9, #0284c7)"
-                      : "linear-gradient(145deg, #ffffff, #f3f4f6)",
-                  boxShadow:
-                    msg.role === "user"
-                      ? "0 4px 8px rgba(14,165,233,0.35), inset 0 1px 1px rgba(255,255,255,0.4)"
-                      : "0 4px 8px rgba(0,0,0,0.12), inset 0 1px 1px rgba(255,255,255,0.4)",
-
-                  color: msg.role === "user" ? "#fff" : "#111827",
+                      ? "1px solid var(--c-primary)"
+                      : "1px solid var(--c-border)",
+                  color: msg.role === "user" ? "#fff" : "var(--c-fg)",
                   lineHeight: 1.5,
                   whiteSpace: "pre-wrap",
                   wordBreak: "break-word",
@@ -120,7 +149,7 @@ export default function QA() {
 
                 {/* 图谱依据：折叠展示本次回答用到的三元组 */}
                 {msg.role === "bot" && msg.sources?.length > 0 && (
-                  <details style={{ marginTop: 8, fontSize: 12, color: "#6b7280" }}>
+                  <details style={{ marginTop: 8, fontSize: 12, color: "var(--c-fg-muted)" }}>
                     <summary style={{ cursor: "pointer", userSelect: "none" }}>
                       图谱依据 {msg.sources.length} 条
                       {msg.retrieval?.strategy ? `（${msg.retrieval.strategy}）` : ""}
@@ -151,7 +180,7 @@ export default function QA() {
                 style={{
                   background: "rgba(255,255,255,0.8)",
                   backdropFilter: "blur(12px)",
-                  borderRadius: 18,
+                  borderRadius: "var(--radius-lg)",
                   padding: "10px 14px",
                   display: "flex",
                   alignItems: "center",
@@ -160,11 +189,11 @@ export default function QA() {
                   boxShadow:
                     "0 4px 8px rgba(0,0,0,0.1), inset 0 1px 1px rgba(255,255,255,0.4)",
                   animation: "bubbleFadeIn 0.25s ease",
-                  color: "#6b7280",
+                  color: "var(--c-fg-muted)",
                   fontStyle: "italic",
                 }}
               >
-                <LoadingOutlined spin style={{ color: "#3b82f6" }} />
+                <LoadingOutlined spin style={{ color: "var(--c-primary)" }} />
                 <span>打字中...</span>
               </div>
             </div>
@@ -173,24 +202,22 @@ export default function QA() {
           <div ref={messagesRef} />
         </div>
 
-        {/* ⬇⬇⬇ Apple 风格底部输入区域（完整磨砂玻璃） */}
+        {/* 底部输入区
+            原来是 position:fixed + left:0/right:0：fixed 相对视口定位，
+            会脱离外壳的左偏移，输入栏直接横跨到悬浮侧边栏底下。
+            改成 sticky 后它留在文档流里，宽度自动跟随面板。 */}
         <div
           style={{
-            position: "fixed",
-            left: 0,
-            right: 0,
+            position: "sticky",
             bottom: 0,
-
-            background: "rgba(255,255,255,0.72)",
-            backdropFilter: "blur(20px)",
-            WebkitBackdropFilter: "blur(20px)",
-            borderTop: "1px solid rgba(255,255,255,0.45)",
-            boxShadow: "0 -6px 20px rgba(0,0,0,0.05)",
-
-            padding: "14px 18px",
+            background: "var(--c-glass-strong)",
+            backdropFilter: "var(--c-glass-blur)",
+            WebkitBackdropFilter: "var(--c-glass-blur)",
+            borderTop: "1px solid var(--c-border)",
+            padding: "12px 16px",
             display: "flex",
             justifyContent: "center",
-            zIndex: 1000,
+            zIndex: 10,
           }}
         >
           <div style={{ width: "100%", maxWidth: 960, position: "relative" }}>
@@ -210,7 +237,7 @@ export default function QA() {
               disabled={loading}
               style={{
                 paddingRight: 56,
-                borderRadius: 14,
+                borderRadius: "var(--radius-lg)",
                 resize: "none",
 
                 background: "rgba(255,255,255,0.75)",
@@ -221,16 +248,17 @@ export default function QA() {
                 boxShadow:
                   "inset 0 0 3px rgba(255,255,255,0.6), 0 4px 12px rgba(0,0,0,0.08)",
 
-                transition: "all 0.25s ease",
+                transition: "background-color 220ms cubic-bezier(0.22,0.61,0.36,1), border-color 220ms cubic-bezier(0.22,0.61,0.36,1), box-shadow 220ms cubic-bezier(0.22,0.61,0.36,1)",
                 fontSize: "15px",
               }}
               onFocus={(e) => {
-                e.target.style.border = "1px solid #3b82f6";
+                e.target.style.border = "1px solid var(--c-primary)";
+                // 焦点环用中性深灰，不用蓝色发光（单色主题下蓝色是杂色）
                 e.target.style.boxShadow =
-                  "0 0 0 4px rgba(59,130,246,0.25), inset 0 0 3px rgba(255,255,255,0.6)";
+                  "0 0 0 4px rgba(0,0,0,0.08), inset 0 0 3px rgba(255,255,255,0.6)";
               }}
               onBlur={(e) => {
-                e.target.style.border = "1px solid #d1d5db";
+                e.target.style.border = "1px solid var(--c-border-strong)";
                 e.target.style.boxShadow =
                   "inset 0 0 3px rgba(255,255,255,0.6), 0 4px 12px rgba(0,0,0,0.08)";
               }}
@@ -252,15 +280,15 @@ export default function QA() {
                 borderRadius: "50%",
                 border: "none",
 
-                background: "linear-gradient(145deg, #3b82f6, #2563eb)",
+                background: "var(--c-primary)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
 
-                boxShadow: "0 4px 8px rgba(59,130,246,0.35)",
+                boxShadow: "none",
 
                 cursor: loading ? "not-allowed" : "pointer",
-                transition: "all 0.2s ease",
+                transition: "background-color 150ms cubic-bezier(0.22,0.61,0.36,1), border-color 150ms cubic-bezier(0.22,0.61,0.36,1)",
               }}
               onMouseDown={(e) => {
                 e.currentTarget.style.transform =

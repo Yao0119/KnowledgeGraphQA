@@ -113,7 +113,7 @@ export default function CustomerProfile() {
 
   const styles = {
     container: {
-      backgroundColor: "#f0f2f5",
+      backgroundColor: "var(--c-surface2)",
       minHeight: "100vh",
       padding: "20px",
     },
@@ -126,12 +126,12 @@ export default function CustomerProfile() {
     title: {
       fontSize: "32px",
       fontWeight: "bold",
-      color: "#001529",
+      color: "var(--c-fg)",
       margin: 0,
     },
     card: {
-      borderRadius: "10px",
-      boxShadow: "0 2px 10px rgba(0,0,0,0.08)",
+      borderRadius: "var(--radius-lg)",
+      boxShadow: "none",
     },
     section: {
       marginBottom: "30px",
@@ -140,22 +140,22 @@ export default function CustomerProfile() {
       fontSize: "18px",
       fontWeight: "600",
       marginBottom: "15px",
-      color: "#444",
+      color: "var(--c-fg)",
     },
     infoGroup: {
       marginBottom: "20px",
       padding: "15px",
-      backgroundColor: "#f5f5f5",
-      borderRadius: "8px",
+      backgroundColor: "var(--c-surface2)",
+      borderRadius: "var(--radius-md)",
     },
     label: {
       fontWeight: "600",
-      color: "#666",
+      color: "var(--c-fg-muted)",
       marginBottom: "5px",
     },
     value: {
       fontSize: "16px",
-      color: "#333",
+      color: "var(--c-fg)",
     },
   };
 
@@ -167,8 +167,14 @@ export default function CustomerProfile() {
           <h1 style={styles.title}>个人资料管理</h1>
           <Button
             type="primary"
-            icon={<ArrowLeftOutlined />}
-            onClick={() => navigate("/")}
+            // href 让 antd 渲染成真正的 <a>：键盘可达、支持中键与新标签；
+            // onClick 里 preventDefault 再走 SPA 路由，避免整页刷新。
+            href="/"
+            onClick={(e) => {
+              e.preventDefault();
+              navigate("/");
+            }}
+            icon={<ArrowLeftOutlined aria-hidden="true" />}
           >
             返回首页
           </Button>

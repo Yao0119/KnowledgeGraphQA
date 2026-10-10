@@ -259,7 +259,7 @@ export default function LLMSettingsModal({ open, onClose, onSaved }) {
               <Input.Password
                 placeholder={settings?.api_key_set ? `已配置（${settings.api_key_masked}），留空则不修改` : "sk-..."}
                 autoComplete="new-password"
-                prefix={<ApiOutlined style={{ color: "#bbb" }} />}
+                prefix={<ApiOutlined style={{ color: "var(--c-fg-faint)" }} />}
               />
             </Form.Item>
 

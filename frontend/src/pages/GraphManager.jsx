@@ -26,6 +26,8 @@ import {
   ClusterOutlined,
   ZoomInOutlined,
   ZoomOutOutlined,
+  ApartmentOutlined,
+  TableOutlined,
 } from "@ant-design/icons";
 
 import { Network } from "vis-network";
@@ -36,6 +38,7 @@ import api, { errorMessage, isAdmin } from "../api";
 // 而是会返回恶意软件家族（Virus/Trojan/Worm…）或领域标签（Family/Platform/Solution…），
 // 旧页面里那张只有 6 种颜色的表已覆盖不到，这里换成完整配色表。
 import { getNodeColor, truncateLabel, NODE_TYPES } from "../graphTheme";
+import { color, space, radius, font } from "../theme";
 
 // -------------------------
 // 支持的节点类型
@@ -82,7 +85,12 @@ export default function GraphManager() {
   // 约 443 个节点 / 11 种关系的连通子图。下面这几个参数就是给它用的。
   const [seeds, setSeeds] = useState(25); // 种子数量（决定样本规模）
   const [offset, setOffset] = useState(0); // 种子偏移（"换一批"）
-  const [hideText, setHideText] = useState(false); // 是否隐藏句子型节点
+  // 是否隐藏句子型节点。默认 true：这类节点（解决方案 / 病毒行为 / 综合描述）
+  // 占全库约 72%，一画出来就把真正的实体结构淹没成一团毛线。
+  const [hideText, setHideText] = useState(true);
+  // 是否在节点与关系上显示文字标签。默认 false：
+  // 几百个节点同时贴标签会互相压住、完全读不了；名字改由悬停气泡与下方表格呈现。
+  const [showLabels, setShowLabels] = useState(false);
   const [meta, setMeta] = useState(null); // 后端返回的采样信息
 
   // -------------------------
@@ -146,8 +154,9 @@ export default function GraphManager() {
         message: `已加载 ${nodes.length} 个节点 / ${edges.length} 条关系`,
         description:
           `抽样方式：${meta0.seed_count ?? useSeeds} 个病毒种子展开邻域` +
-          `（第 ${useOffset + 1}–${useOffset + (meta0.seed_count ?? useSeeds)} 个 / 共 ${meta0.total_malware ?? "?"} 个病毒）` +
-          `。全库共 ${rawStats.nodes} 节点 / ${rawStats.relationships} 关系 ——` +
+          // 范围用普通连字符（破折号是全站禁用字符）
+          `（第 ${useOffset + 1}-${useOffset + (meta0.seed_count ?? useSeeds)} 个，共 ${meta0.total_malware ?? "?"} 个病毒）。` +
+          `全库共 ${rawStats.nodes} 节点 / ${rawStats.relationships} 关系，` +
           `170 万节点的图谱无法一次画完，所以按种子抽样。`,
         placement: "bottomRight",
         duration: 6,
@@ -229,27 +238,33 @@ export default function GraphManager() {
 
     const visNodes = nodes.map((n) => ({
       id: n.id,
-      // 必须截断：句子型节点（解决方案/病毒行为/综合描述）的名字是整句中文，
-      // 最长上百字，原样当标签画会把整张图撑得极宽、节点互相重叠。
-      // 完整内容仍能在悬浮提示里看到。
-      label: truncateLabel(n.name),
+      // 标签默认不画（见 showLabels 注释）。打开时才截断显示：
+      // 句子型节点名最长上百字，原样当标签画会把整张图撑爆。
+      label: showLabels ? truncateLabel(n.name) : undefined,
       group: n.label,
       color: getColorByLabel(n.label),
       shape: "dot",
-      size: 18,
-      // 再兜一层宽度上限，保证任何情况下标签不会宽到破坏布局
+      size: 14,
       widthConstraint: { maximum: 170 },
-      font: { color: "#111", size: 15 },
+      // ⚠️ 画布颜色必须是**字面量**：vis-network 把字符串直接交给 canvas 的
+      //    fillStyle，而 canvas 不解析 CSS 变量 —— 写 var(--c-fg) 等于颜色设置失败
+      //    （表现为文字沿用上一个填充色，看起来发浅蓝/发灰）。
+      font: { color: "#1C1C1E", size: 13 },
+      // 原始名字留给"显示标签"开关做增量更新，避免为了开关重建整个图（会重跑物理布局）
+      __rawName: n.name,
       title: `名称: ${n.name}<br/>类型: ${n.label}<br/>双击可编辑`,
     }));
 
     const visEdges = edges.map((e) => ({
       from: e.source,
       to: e.target,
-      label: e.type,
+      // 关系标签同理：502 条边同时贴"威胁类型/解决方案…"就是文字汤
+      label: showLabels ? e.type : undefined,
+      // 留给"显示标签"开关做增量更新
+      __rawType: e.type,
       arrows: "to",
-      font: { size: 12, align: "middle" },
-      color: "#999",
+      font: { size: 11, align: "middle", color: "#6E6E73" },
+      color: "#C7C7CC",
     }));
 
     const data = { nodes: visNodes, edges: visEdges };
@@ -385,7 +400,7 @@ export default function GraphManager() {
         network.body.data.nodes.update(
           allNodes.map((n) => ({ id: n.id, color: getColorByLabel(n.group) }))
         );
-        network.body.data.edges.update(allEdges.map((e) => ({ id: e.id, color: "#999" })));
+        network.body.data.edges.update(allEdges.map((e) => ({ id: e.id, color: "var(--c-fg-faint)" })));
         return;
       }
 
@@ -393,13 +408,16 @@ export default function GraphManager() {
 
       const updatedNodes = allNodes.map((n) => ({
         id: n.id,
-        color: n.id === selectedNodeId ? "#ff9800" : "#ddd",
+        // ⚠️ 画布颜色必须字面量，不能写 var(--c-*)：canvas 不解析 CSS 变量。
+        //    选中态用近黑（与全站主色一致），原来这里是橙色 #ff9800（杂色）
+        color: n.id === selectedNodeId ? "#1C1C1E" : "#E5E5EA",
       }));
 
       const updatedEdges = allEdges.map((e) => ({
         id: e.id,
         color:
-          e.from === selectedNodeId || e.to === selectedNodeId ? "#ff9800" : "#eee",
+          // 同上：字面量，且选中边用近黑而不是橙色
+          e.from === selectedNodeId || e.to === selectedNodeId ? "#1C1C1E" : "#E5E5EA",
       }));
 
       network.body.data.nodes.update(updatedNodes);
@@ -434,6 +452,29 @@ export default function GraphManager() {
     };
 
   }, [graphData]);
+
+  /**
+   * 标签开关：**增量更新**节点/边的 label，而不是重建整个图。
+   * 重建会重跑物理布局，图会整体"跳"一下重新排布，体验很差。
+   */
+  useEffect(() => {
+    const net = visRef.current;
+    const dsNodes = net?.body?.data?.nodes;
+    const dsEdges = net?.body?.data?.edges;
+    if (!dsNodes || !dsEdges) return;
+    dsNodes.update(
+      dsNodes.get().map((n) => ({
+        id: n.id,
+        label: showLabels ? truncateLabel(n.__rawName ?? "") : undefined,
+      }))
+    );
+    dsEdges.update(
+      dsEdges.get().map((e) => ({
+        id: e.id,
+        label: showLabels ? e.__rawType : undefined,
+      }))
+    );
+  }, [showLabels]);
 
   // -------------------------
   // 新建/编辑节点
@@ -502,37 +543,45 @@ export default function GraphManager() {
   };
 
   // -------------------------
-  // 图例组件
+  // 图例
+  // 原来是 position:absolute 浮在画布上，会遮住右侧节点且被裁切；
+  // 改成画布下方的一行可换行条带：不遮挡、不用点开关、宽屏自动铺开。
+  // （这里的彩色圆点是**节点类型颜色**，属于用户明确保留的"图谱节点颜色"）
   // -------------------------
   const Legend = () => {
-    const labels = NODE_LABELS;
     return (
       <div
         style={{
-          position: "absolute",
-          right: 20,
-          top: 70,
-          background: "rgba(255,255,255,0.95)",
-          padding: "10px 14px",
-          borderRadius: 12,
-          boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-          zIndex: 10,
+          marginTop: 12,
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "center",
+          gap: "6px 14px",
         }}
       >
-        <b>图例</b>
-        {labels.map((l) => (
-          <div key={l} style={{ display: "flex", marginTop: 5 }}>
-            <div
+        <span className="metric-label" style={{ marginRight: 2 }}>图例</span>
+        {NODE_LABELS.map((l) => (
+          <span
+            key={l}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              fontSize: 12,
+              color: "var(--c-fg-muted)",
+            }}
+          >
+            <span
               style={{
-                width: 14,
-                height: 14,
+                width: 10,
+                height: 10,
                 borderRadius: "50%",
                 background: getColorByLabel(l),
-                marginRight: 6,
+                flex: "none",
               }}
             />
             {l}
-          </div>
+          </span>
         ))}
       </div>
     );
@@ -543,104 +592,39 @@ export default function GraphManager() {
   // -------------------------
   return (
     <Spin spinning={loading} tip="加载中...">
-      <div className="w-full px-6 py-6 space-y-6 bg-[#f7f8fa] min-h-screen">
+      <div className="space-y-5">
 
         {/* 统计卡片 */}
 
         {/* 1. 统计卡片 (移除新建按钮) */}
 
-        {/*<Card*/}
-        {/*  className={`shadow-lg rounded-xl bg-white transition-shadow duration-300 hover:shadow-2xl ${isFullscreen ? "hidden" : ""}`}*/}
-        {/*  title={<span className="text-lg font-bold text-gray-700 flex items-center"><ClusterOutlined className="mr-2 text-indigo-500" /> 图谱概览</span>}*/}
-        {/*>*/}
-        {/*  <div className="flex justify-start items-center gap-12 px-4">*/}
-        {/*    <div className="flex items-center p-4 bg-indigo-50 rounded-lg">*/}
-        {/*      <div className="text-center">*/}
-        {/*        <div className="text-gray-500 text-sm font-medium">节点总数</div>*/}
-        {/*        <div className="text-5xl font-extrabold text-indigo-600 mt-1">{stats.nodes}</div>*/}
-        {/*      </div>*/}
-        {/*    </div>*/}
-        {/*    <Divider type="vertical" style={{ height: '70px', borderColor: '#e0e0e0' }} />*/}
-        {/*    <div className="flex items-center p-4 bg-purple-50 rounded-lg">*/}
-        {/*      <div className="text-center">*/}
-        {/*        <div className="text-gray-500 text-sm font-medium">关系总数</div>*/}
-        {/*        <div className="text-5xl font-extrabold text-purple-600 mt-1">{stats.relationships}</div>*/}
-        {/*      </div>*/}
-        {/*    </div>*/}
-        {/*  </div>*/}
-        {/*</Card>*/}
-        <Card
-  className={isFullscreen ? "hidden" : ""}
-  variant="borderless"
-  style={{
-    borderRadius: '16px',
-    boxShadow: '0 10px 30px -10px rgba(0,0,0,0.1)', // 手动写阴影，防止 shadow-lg 失效
-    background: '#fff',
-    transition: 'all 0.3s ease'
-  }}
-  styles={{ body: { padding: 24 } }}
-  title={
-    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '1px solid #f0f0f0', paddingBottom: '12px' }}>
-      <div style={{
-        background: '#e0e7ff',
-        padding: '8px',
-        borderRadius: '8px',
-        color: '#4f46e5',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center'
-      }}>
-        <ClusterOutlined style={{ fontSize: '18px' }} />
-      </div>
-      <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#374151' }}>图谱概览</span>
-    </div>
-  }
->
-  {/* 使用 Flex 布局代替 Grid，兼容性最强，绝对不会竖着排 */}
-  <div style={{ display: 'flex', gap: '24px', justifyContent: 'space-between' }}>
-
-    {/* 左边：节点 */}
-    <div style={{
-      flex: 1,
-      background: 'linear-gradient(135deg, #eff6ff 0%, #ffffff 100%)', // 蓝色渐变
-      borderRadius: '12px',
-      padding: '20px',
-      border: '1px solid #dbeafe',
-      position: 'relative',
-      overflow: 'hidden'
-    }}>
-      <div style={{ color: '#3b82f6', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '4px' }}>
-        节点总数 (Nodes)
-      </div>
-      <div style={{ fontSize: '36px', fontWeight: '800', color: '#1d4ed8', lineHeight: '1.2' }}>
-        {Number(stats.nodes).toLocaleString()}
-      </div>
-      {/* 装饰圆圈 */}
-      <div style={{ position: 'absolute', right: '-10px', bottom: '-10px', width: '80px', height: '80px', background: '#3b82f6', opacity: 0.05, borderRadius: '50%' }} />
-    </div>
-
-    {/* 右边：关系 */}
-    <div style={{
-      flex: 1,
-      background: 'linear-gradient(135deg, #f3e8ff 0%, #ffffff 100%)', // 紫色渐变
-      borderRadius: '12px',
-      padding: '20px',
-      border: '1px solid #e9d5ff',
-      position: 'relative',
-      overflow: 'hidden'
-    }}>
-      <div style={{ color: '#9333ea', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '4px' }}>
-        关系总数 (Edges)
-      </div>
-      <div style={{ fontSize: '36px', fontWeight: '800', color: '#7e22ce', lineHeight: '1.2' }}>
-        {Number(stats.relationships).toLocaleString()}
-      </div>
-      {/* 装饰圆圈 */}
-      <div style={{ position: 'absolute', right: '-10px', bottom: '-10px', width: '80px', height: '80px', background: '#9333ea', opacity: 0.05, borderRadius: '50%' }} />
-    </div>
-
-  </div>
-</Card>
+        <div className={`panel ${isFullscreen ? "hidden" : ""}`} style={{ marginBottom: space.xl }}>
+          <div className="panel-head">
+            <ClusterOutlined style={{ fontSize: 15, color: color.fgMuted }} />
+            图谱概览
+          </div>
+          {/* 两个数字并排，并且**适配面板宽度**：
+              格子用 1fr 铺满（之前把列宽上限写成 220px，2560 屏上右侧一大片空白）；
+              内部改成"标签靠左、数字靠右"，这样格子再宽也是有意为之的行式布局，
+              而不是把一个大数字孤零零丢在左边。 */}
+          <div
+            style={{
+              padding: space.lg,
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+              gap: `${space.lg}px ${space.xxl}px`,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
+              <span className="metric-label">节点总数</span>
+              <span className="metric">{Number(stats.nodes).toLocaleString()}</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
+              <span className="metric-label">关系总数</span>
+              <span className="metric">{Number(stats.relationships).toLocaleString()}</span>
+            </div>
+          </div>
+        </div>
 
 
         {/* 图谱卡片 */}
@@ -648,13 +632,15 @@ export default function GraphManager() {
           ref={graphCardRef}
           title={
             <div className="flex items-center w-full">
-              <span className="text-lg font-bold text-gray-700">🕸 图谱可视化</span>
+              <span style={{display: "inline-flex", alignItems: "center", gap: 8, fontSize: font.size.lg, fontWeight: font.weight.semibold, color: color.fg}}>
+                <ApartmentOutlined style={{ color: color.fgMuted }} />
+                图谱可视化
+              </span>
               <div className="ml-auto flex gap-3">
                 <Button
                   icon={<PlusOutlined />}
                   type="primary"
                   onClick={handleCreateNode}
-                  className="rounded-lg bg-green-600 hover:bg-green-700 border-none font-semibold shadow-md"
                 >
                   新建节点
                 </Button>
@@ -678,31 +664,46 @@ export default function GraphManager() {
                 >
                   换一批
                 </Button>
-                <Tooltip title="解决方案 / 病毒行为 / 综合描述 这类节点的名字是整句中文（最长上百字），会把图形撑得很宽。打开后只保留 实体-关系-实体 结构，图更清爽。">
+                <Tooltip title="解决方案 / 病毒行为 / 综合描述 这类节点占全库约 72%，名字还是整句中文（最长上百字）。关闭后只保留 实体-关系-实体 结构，图更清爽。">
                   <Space size={6} style={{ cursor: "help" }}>
                     <Switch
                       size="small"
                       checked={hideText}
                       onChange={(v) => loadData({ hideText: v })}
                     />
-                    <span className="text-sm text-gray-600">只看实体</span>
+                    <span style={{ fontSize: 13, color: "var(--c-fg-muted)" }}>只看实体</span>
+                  </Space>
+                </Tooltip>
+
+                <Tooltip title="显示每个节点与关系上的文字。几百个节点同时贴标签会互相压住、读不了，所以默认关闭；不显示时把鼠标停在节点上仍能看到完整名称。">
+                  <Space size={6} style={{ cursor: "help" }}>
+                    <Switch
+                      size="small"
+                      checked={showLabels}
+                      onChange={setShowLabels}
+                    />
+                    <span style={{ fontSize: 13, color: "var(--c-fg-muted)" }}>显示标签</span>
                   </Space>
                 </Tooltip>
 
                 <Button icon={<ReloadOutlined />} onClick={() => loadData()} className="rounded-lg">
                   重新加载
                 </Button>
-                {/* 缩放按钮：滚轮已显式接管，这里再给一个不依赖滚轮的入口 */}
+                {/* 缩放按钮：滚轮已显式接管，这里再给一个不依赖滚轮的入口。
+                    纯图标按钮必须有可访问名称（aria-label），否则屏幕阅读器只念出
+                    "按钮"；Tooltip 只提供视觉提示，不能替代名称。 */}
                 <Tooltip title="放大（也可以直接在图上滚动滚轮）">
                   <Button
-                    icon={<ZoomInOutlined />}
+                    aria-label="放大"
+                    icon={<ZoomInOutlined aria-hidden="true" />}
                     onClick={() => zoomControlsRef.current?.in()}
                     className="rounded-lg"
                   />
                 </Tooltip>
                 <Tooltip title="缩小">
                   <Button
-                    icon={<ZoomOutOutlined />}
+                    aria-label="缩小"
+                    icon={<ZoomOutOutlined aria-hidden="true" />}
                     onClick={() => zoomControlsRef.current?.out()}
                     className="rounded-lg"
                   />
@@ -717,63 +718,71 @@ export default function GraphManager() {
               </div>
             </div>
           }
-          className={`shadow-lg rounded-xl bg-white relative ${isFullscreen ? "fixed inset-0 z-[1000] w-full h-full p-0 m-0" : ""}`}
+          className={`panel ${isFullscreen ? "fixed inset-0 z-[1000] w-full h-full p-0 m-0" : ""}`}
           styles={{ body: { padding: 16 } }}
         >
-          <Legend />
-
           {/* 抽样说明：避免把"图上只有几百个节点"误解成"图谱只有这么点东西" */}
           {meta ? (
             <div
               style={{
                 marginBottom: 10,
-                padding: "6px 12px",
-                background: "rgba(0,122,255,0.06)",
-                border: "1px solid rgba(0,122,255,0.15)",
-                borderRadius: 8,
+                padding: "8px 12px",
+                // 原先是 rgba(0,122,255,0.06) 旧 Apple 蓝 —— 单色主题下的杂色
+                background: "var(--c-surface2)",
+                border: "1px solid var(--c-border)",
+                borderRadius: "var(--radius-md)",
                 fontSize: 13,
-                color: "#3c4a5a",
+                color: "var(--c-fg)",
               }}
             >
               当前显示 <b>{meta.node_count ?? graphData.nodes.length}</b> 个节点 /{" "}
-              <b>{meta.edge_count ?? graphData.edges.length}</b> 条关系 ——
+              <b>{meta.edge_count ?? graphData.edges.length}</b> 条关系，
               按 <b>{meta.seed_count ?? seeds}</b> 个病毒种子展开邻域抽样
-              （第 {offset + 1}–{offset + (meta.seed_count ?? seeds)} 个，共{" "}
+              （第 {offset + 1}-{offset + (meta.seed_count ?? seeds)} 个，共{" "}
               {meta.total_malware?.toLocaleString?.() ?? "?"} 个病毒）。
               全库共 {stats.nodes.toLocaleString()} 节点 / {stats.relationships.toLocaleString()} 关系，
               无法一次画完，请用「换一批」或调整种子数浏览。
               <br />
-              操作：<b>滚轮缩放</b>（以鼠标位置为中心）・<b>拖拽平移</b>・单击节点高亮・双击节点编辑。
+              操作：<b>滚轮缩放</b>（以鼠标位置为中心）、<b>拖拽平移</b>、单击节点高亮、双击节点编辑。
               {hideText ? " 已开启「只看实体」。" : ""}
             </div>
           ) : null}
 
           <div
             ref={networkRef}
+            className="graph-canvas"
             style={{
               height: isFullscreen ? "calc(100vh - 64px)" : 520,
-              borderRadius: 8,
-              background: "rgba(255,255,255,0.8)",
-              backdropFilter: "blur(10px)",
-              boxShadow: "inset 0 0 10px rgba(0,0,0,0.05)",
             }}
           />
+
+          <Legend />
         </Card>
 
         {/* 三元组表格 */}
-        <Card className={`${isFullscreen ? "hidden" : ""} shadow-lg rounded-xl bg-white`} title={<span className="text-lg font-bold text-gray-700">📋 三元组样例</span>}>
+        <div className={`panel ${isFullscreen ? "hidden" : ""}`}>
+          <div className="panel-head">
+            <TableOutlined style={{ fontSize: 15, color: color.fgMuted }} />
+            三元组样例
+          </div>
+          <div style={{ padding: space.md }}>
           <Table
             dataSource={sample}
             rowKey={(r) => JSON.stringify(r)}
-            pagination={{ pageSize: 6 }}
-            bordered
+            pagination={{ pageSize: 6, size: "small" }}
+            size="small"
+            // 去掉 bordered：密集表格里横线足够，竖线只会加噪
             columns={[
-              { title: "源节点", render: (_, r) => <Tag color="blue">{r.source?.name}</Tag> },
-              { title: "关系", render: (_, r) => <span className="font-mono text-gray-600">--[{r.relation}]--&gt;</span> },
-              { title: "目标节点", render: (_, r) => <Tag color="orange">{r.target?.name}</Tag> },
+              // 源/目标节点名是机器标识符：等宽 + 省略 + translate="no"
+              // （不让浏览器自动翻译改写病毒名，否则与数据对不上）；
+              // 也不再给两侧各配一个彩色 Tag（全站已有 18 种节点类型色在竞争注意力）
+              { title: "源节点", render: (_, r) => <span className="mono ident" translate="no" title={r.source?.name}>{r.source?.name}</span> },
+              { title: "关系", render: (_, r) => <span className="mono ident" translate="no" title={r.relation} style={{ color: color.fgMuted }}>{r.relation}</span> },
+              { title: "目标节点", render: (_, r) => <span className="mono ident" translate="no" title={r.target?.name}>{r.target?.name}</span> },
             ]}
           />
-        </Card>
+          </div>
+        </div>
       </div>
 
       {/* 编辑/新建 Modal */}
