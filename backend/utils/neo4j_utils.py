@@ -303,7 +303,7 @@ def get_full_graph(
                     WITH a
                     ORDER BY toLower(coalesce(a.name, a.title, elementId(a)))
                     SKIP $offset LIMIT $seeds
-                    OPTIONAL MATCH (a)-[r]-(b)
+                    OPTIONAL MATCH (a)-[r]->(b)
                     WHERE b IS NULL OR (
                         coalesce(b.graph_id, 'builtin-malware') = $graph_id
                         AND ($hide_text = false

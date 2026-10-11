@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   Card,
@@ -45,12 +45,6 @@ import { color, space, radius, font } from "../theme";
 // -------------------------
 // 支持的节点类型
 // -------------------------
-// 保留 NODE_LABELS 这个名字：新建节点表单的默认值、图例、类型下拉三处都在用它。
-// 内容换成新 schema 的真实类型集合（含 :Malware 的家族标签与 Family/Platform/…），
-// 旧的 ["Virus","System","File","Attack","Behavior","Entity"] 是上一版 schema 的遗留，
-// 其中 System/File/Attack/Entity 在当前图谱里根本不会出现。
-const NODE_LABELS = NODE_TYPES;
-
 // -------------------------
 // 颜色函数（保留原函数名，现有调用点无需改动）
 // -------------------------
@@ -63,7 +57,10 @@ export default function GraphManager() {
   const { graphId: routeGraphId } = useParams();
   const selectedGraphId = routeGraphId || localStorage.getItem("active_graph_id") || "builtin-malware";
   const [graphMeta, setGraphMeta] = useState(null);
-  const sampleLabel = graphMeta?.is_builtin || selectedGraphId === "builtin-malware" ? "病毒" : "实体";
+  // 路由已明确指向用户图谱时，不要等元数据请求返回后才决定文案，
+  // 否则首帧会短暂显示内置图谱的“病毒”类型。
+  const isBuiltinGraph = selectedGraphId === "builtin-malware" || graphMeta?.is_builtin === true;
+  const sampleLabel = isBuiltinGraph ? "病毒" : "实体";
   const [stats, setStats] = useState({ nodes: 0, relationships: 0 });
   const [sample, setSample] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -99,6 +96,16 @@ export default function GraphManager() {
   // 几百个节点同时贴标签会互相压住、完全读不了；名字改由悬停气泡与下方表格呈现。
   const [showLabels, setShowLabels] = useState(false);
   const [meta, setMeta] = useState(null); // 后端返回的采样信息
+
+  // 内置图谱使用恶意软件 schema；用户图谱只展示当前图谱真实出现的类型，
+  // 不再把 Virus/Trojan/Worm 等无关类型带到用户图谱的图例和新建节点下拉框里。
+  const nodeLabels = useMemo(() => {
+    if (isBuiltinGraph) return NODE_TYPES;
+    const discovered = graphData.nodes
+      .map((node) => node.label)
+      .filter((label) => label && label !== "Node");
+    return Array.from(new Set(["Entity", ...discovered]));
+  }, [graphData.nodes, isBuiltinGraph]);
 
   // -------------------------
   // 加载数据
@@ -167,7 +174,7 @@ export default function GraphManager() {
           // 范围用普通连字符（破折号是全站禁用字符）
           `（第 ${useOffset + 1}-${useOffset + (meta0.seed_count ?? useSeeds)} 个，共 ${totalSeed} 个${seedLabel}）。` +
           `全库共 ${rawStats.nodes} 节点 / ${rawStats.relationships} 关系，` +
-          `${selectedGraphId === "builtin-malware" ? "内置图谱无法一次画完，所以按种子抽样。" : "当前图谱按实体及其关系抽样展示。"}`,
+          `${isBuiltinGraph ? "内置图谱无法一次画完，所以按种子抽样。" : "当前图谱按实体及其关系抽样展示。"}`,
         placement: "bottomRight",
         duration: 6,
       });
@@ -509,7 +516,7 @@ export default function GraphManager() {
   const handleCreateNode = () => {
     setEditingNode(null);
     form.resetFields();
-    form.setFieldsValue({ label: NODE_LABELS[0] });
+    form.setFieldsValue({ label: nodeLabels[0] || "Entity" });
     setIsModalVisible(true);
   };
 
@@ -587,7 +594,7 @@ export default function GraphManager() {
         }}
       >
         <span className="metric-label" style={{ marginRight: 2 }}>图例</span>
-        {NODE_LABELS.map((l) => (
+        {nodeLabels.map((l) => (
           <span
             key={l}
             style={{
@@ -706,7 +713,7 @@ export default function GraphManager() {
                 >
                   换一批
                 </Button>
-                <Tooltip title={selectedGraphId === "builtin-malware"
+                <Tooltip title={isBuiltinGraph
                   ? "解决方案 / 病毒行为 / 综合描述 这类节点占全库约 72%，名字还是整句中文（最长上百字）。关闭后只保留实体-关系-实体结构，图更清爽。"
                   : "过滤解决方案、行为、描述等文本节点，只保留更适合浏览的实体关系结构。"}>
                   <Space size={6} style={{ cursor: "help" }}>
@@ -785,7 +792,7 @@ export default function GraphManager() {
               （第 {offset + 1}-{offset + (meta.seed_count ?? seeds)} 个，共{" "}
               {(meta.total_seed ?? meta.total_malware)?.toLocaleString?.() ?? "?"} 个{meta.seed_label || sampleLabel}）。
               全库共 {stats.nodes.toLocaleString()} 节点 / {stats.relationships.toLocaleString()} 关系，
-              {selectedGraphId === "builtin-malware"
+              {isBuiltinGraph
                 ? "无法一次画完，请用「换一批」或调整种子数浏览。"
                 : "当前按实体及其关系抽样展示，可用「换一批」浏览更多内容。"}
               <br />
@@ -857,7 +864,7 @@ export default function GraphManager() {
               <Input disabled className="rounded-lg" />
             ) : (
               <Select className="rounded-lg" placeholder="请选择节点类型">
-                {NODE_LABELS.map(label => (
+                {nodeLabels.map(label => (
                   <Select.Option key={label} value={label}>
                     <Tag color={getColorByLabel(label)}>{label}</Tag>
                   </Select.Option>

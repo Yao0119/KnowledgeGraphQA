@@ -55,6 +55,7 @@ def parse_structured_text(text: str) -> Tuple[List[Dict[str, str]], List[Dict[st
     nodes: Dict[str, Dict[str, str]] = {}
     relationships: Dict[Tuple[str, str, str], Dict[str, str]] = {}
     current_entity = ""
+    in_code_block = False
 
     def ensure_node(name: str, node_type: str = "Entity") -> str:
         clean_name = _clean(name)
@@ -82,7 +83,21 @@ def parse_structured_text(text: str) -> Tuple[List[Dict[str, str]], List[Dict[st
         }
 
     for raw_line in text.splitlines():
-        line = raw_line.strip().lstrip("-•* ").strip()
+        raw = raw_line.strip()
+        if raw.startswith("```"):
+            in_code_block = not in_code_block
+            continue
+        # 保留 text 代码块中的“实体：/关系：”示例，因为用户经常会把
+        # 推荐格式直接粘贴到 Markdown 代码块里；只过滤明显的 Cypher 行。
+        # 例如 MATCH (a)-[r]->(b) 不能被宽松箭头规则识别成三个实体。
+        if in_code_block and re.match(
+            r"^(MATCH|OPTIONAL MATCH|RETURN|CREATE|MERGE|WHERE|WITH)\b",
+            raw,
+            re.IGNORECASE,
+        ):
+            continue
+
+        line = raw.lstrip("-•* ").strip()
         if not line or line.startswith("#"):
             continue
 
@@ -113,12 +128,26 @@ def parse_structured_text(text: str) -> Tuple[List[Dict[str, str]], List[Dict[st
 
         # 允许不写“关系：”前缀的简洁写法：A - 关系 -> B
         arrow_match = _ARROW_RE.match(line)
-        if arrow_match:
+        if arrow_match and not _looks_like_cypher_arrow(line, arrow_match):
             add_relationship(
                 arrow_match.group(1), arrow_match.group(2), arrow_match.group(3)
             )
 
     return list(nodes.values()), list(relationships.values())
+
+
+def _looks_like_cypher_arrow(line: str, match: re.Match) -> bool:
+    """过滤 Markdown 中常见的 Cypher/代码示例箭头。"""
+    source = match.group(1).strip()
+    relation = match.group(2).strip()
+    target = match.group(3).strip()
+    if source.startswith("(") or target.startswith("("):
+        return True
+    if relation.startswith("[") and relation.endswith("]"):
+        return True
+    if re.match(r"^(MATCH|OPTIONAL MATCH|RETURN|CREATE|MERGE|WHERE|WITH)\b", line, re.IGNORECASE):
+        return True
+    return False
 
 
 def _chunks(items: List[dict], size: int = 500):

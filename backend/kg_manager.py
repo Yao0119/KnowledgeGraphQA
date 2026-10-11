@@ -165,10 +165,16 @@ async def create_node(
         dict: {"success": True, "id": elementId, "name": 名称, "label": 标签}
     """
     label = safe_label(payload.label)
+    normalized_name = re.sub(r"\s+", " ", payload.name.strip()).casefold()
     records = run_cypher(
-        f"CREATE (n:`{label}` {{name: $name, graph_id: $graph_id}}) "
+        f"CREATE (n:Entity {{"
+        "name: $name, name_orig: $name, norm_name: $norm_name, "
+        "node_type: $node_type, graph_id: $graph_id"
+        f"}}) SET n:`{label}` "
         "RETURN elementId(n) AS id, n.name AS name, labels(n) AS labels",
         name=payload.name,
+        norm_name=normalized_name,
+        node_type=label,
         graph_id=graph_id,
     )
     if not records:
@@ -176,7 +182,7 @@ async def create_node(
 
     rec = records[0]
     # 节点名集合变了，让问答/推理用的实体名缓存立即失效
-    invalidate_entity_cache()
+    invalidate_entity_cache(graph_id)
     return {
         "success": True,
         "id": rec["id"],
