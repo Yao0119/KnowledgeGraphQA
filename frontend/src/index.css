@@ -45,6 +45,9 @@
   --c-danger-soft: #fde8e8;
   --c-success: #15803d;
   --c-success-dot: #34c759;
+  /* 原先只定义了危险色的浅底，成功色的浅底在 theme.js 里有、CSS 里漏了，
+     导致病毒检测页"未发现威胁"的横幅 background 落到 transparent（用户看不出结论底色）。 */
+  --c-success-soft: #e7f6ec;
   --c-warning: #8a6100;
 
   /* 毛玻璃 */
@@ -665,6 +668,225 @@
   }
   .feature-card:hover .feature-more {
     gap: 10px;
+  }
+
+  /* ============================================================
+     病毒检测 · 文件投递区
+     沿用首页卡片那套配方（毛玻璃 + 大圆角 + 同心），
+     但这里要表达的是"一个空的凹槽" —— 用虚线描边 + 下沉的灰底，
+     与周围浮起的白色卡片形成"槽位"的直觉。
+     拖拽 / 悬停状态在单色主题里不能靠变颜色，只能靠**描边从虚变实 + 底色提亮**。
+  ============================================================ */
+  .scan-plate {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    width: 100%;
+    /* 全站没有全局 border-box 重置（刻意不引 Tailwind preflight），
+       所以 width:100% 的元素必须自己声明 border-box，
+       否则 24px 内边距会把盒子撑出容器 —— 表现为投递槽右侧戳出卡片。 */
+    box-sizing: border-box;
+    min-height: 236px;
+    padding: 34px 24px;
+    border: 1.5px dashed var(--c-border-strong);
+    border-radius: var(--radius-xl);
+    background: var(--c-surface2);
+    color: var(--c-fg-muted);
+    font: inherit;
+    text-align: center;
+    cursor: pointer;
+    overflow: hidden;
+    transition: border-color var(--t-base) var(--ease),
+      background-color var(--t-base) var(--ease), color var(--t-base) var(--ease);
+  }
+  .scan-plate:hover,
+  .scan-plate.is-dragging {
+    border-style: solid;
+    border-color: var(--c-primary);
+    background: var(--c-surface);
+    color: var(--c-fg);
+  }
+  .scan-plate.is-dragging {
+    box-shadow: var(--shadow-card), inset 0 0 0 3px var(--c-surface3);
+  }
+  /* 扫描中：禁止再投递，槽位变实线并加一道横向光带 */
+  .scan-plate.is-busy {
+    cursor: default;
+    border-style: solid;
+    border-color: var(--c-line-faint);
+    background: var(--c-surface);
+  }
+  .scan-plate-icon {
+    width: 52px;
+    height: 52px;
+    display: grid;
+    place-items: center;
+    border-radius: var(--radius-md);
+    background: var(--c-surface3);
+    color: var(--c-fg);
+    font-size: 22px;
+    margin-bottom: 8px;
+    transition: background-color var(--t-base) var(--ease);
+  }
+  .scan-plate:hover .scan-plate-icon,
+  .scan-plate.is-dragging .scan-plate-icon {
+    background: var(--c-surface2);
+  }
+  .scan-plate-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--c-fg);
+    letter-spacing: -0.01em;
+  }
+  .scan-plate-hint {
+    font-size: 12px;
+    color: var(--c-fg-faint);
+  }
+  .scan-plate-limit {
+    margin-top: 8px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: -0.01em;
+    color: var(--c-fg-faint);
+  }
+
+  /* 扫描进行时的光带。这是全页唯一一处自动播放的动效，
+     它表达"正在读这个文件"，扫描结束即消失 —— 属于状态反馈而不是装饰。
+     prefers-reduced-motion 下会被全局规则压成静态，不影响理解。 */
+  .scan-plate.is-busy::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(0, 0, 0, 0.05) 45%,
+      rgba(0, 0, 0, 0.07) 50%,
+      rgba(0, 0, 0, 0.05) 55%,
+      transparent
+    );
+    animation: scan-sweep 1.6s var(--ease) infinite;
+  }
+  @keyframes scan-sweep {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(100%);
+    }
+  }
+
+  /* ---- 已选文件：一行"样本卡" ---- */
+  .scan-file {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-lg);
+    background: var(--c-surface);
+    box-shadow: var(--shadow-card);
+  }
+  /* 扩展名徽标：等宽大写。等宽在这里是功能选择 ——
+     它让不同文件名下的徽标宽度一致，一列排下来不会跳动，也避免 l/1/I 混淆。 */
+  .scan-file-badge {
+    flex: none;
+    width: 46px;
+    height: 46px;
+    display: grid;
+    place-items: center;
+    border-radius: var(--radius-md);
+    background: var(--c-surface3);
+    color: var(--c-fg);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    overflow: hidden;
+  }
+  .scan-file-main {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+  .scan-file-name {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--c-fg);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .scan-file-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--c-fg-faint);
+  }
+  .scan-file-meta .mono {
+    color: var(--c-fg-muted);
+  }
+
+  /* ---- 检测阶段清单 ---- */
+  .scan-stage {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 0;
+    font-size: 13px;
+    color: var(--c-fg-faint);
+    transition: color var(--t-base) var(--ease);
+  }
+  .scan-stage.is-active {
+    color: var(--c-fg);
+    font-weight: 500;
+  }
+  .scan-stage.is-done {
+    color: var(--c-fg-muted);
+  }
+  .scan-stage-mark {
+    flex: none;
+    width: 18px;
+    display: grid;
+    place-items: center;
+    font-size: 12px;
+    color: var(--c-line-faint);
+    transition: color var(--t-base) var(--ease);
+  }
+  .scan-stage.is-active .scan-stage-mark {
+    color: var(--c-primary);
+  }
+  .scan-stage.is-done .scan-stage-mark {
+    color: var(--c-success);
+  }
+  .scan-stage-detail {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--c-fg-faint);
+  }
+
+  /* ---- 结论横幅上的信息条（哈希 / 扫描耗时） ---- */
+  .scan-recap {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+    margin-top: 6px;
+    font-size: 11px;
+    color: var(--c-fg-muted);
+  }
+  .scan-recap .mono {
+    color: var(--c-fg);
   }
 }
 
