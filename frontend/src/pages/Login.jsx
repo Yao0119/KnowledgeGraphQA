@@ -15,7 +15,7 @@ export default function Login() {
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (token) {
-      navigate("/dashboard");
+      navigate("/dashboard/graph");
     }
   }, [navigate]);
 
@@ -34,7 +34,7 @@ export default function Login() {
       setSession({ token: res.data.access_token, user: res.data.user });
       message.success("登录成功，正在跳转...");
       setTimeout(() => {
-        navigate("/");
+        navigate("/dashboard/graph");
       }, 800);
     } catch (err) {
       console.error("登录错误:", err);

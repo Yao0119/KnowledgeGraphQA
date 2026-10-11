@@ -46,7 +46,8 @@ import {
 
 import { Network } from "vis-network";
 
-import api, { errorMessage } from "../api";
+import api, { errorMessage, getToken } from "../api";
+import { useNavigate } from "react-router-dom";
 import { color } from "../theme";
 import {
   NODE_COLORS,
@@ -68,6 +69,11 @@ const VIRUS_LIST_LIMIT = 300;
 const PANEL_HEIGHT = 460;
 
 export default function GraphDual() {
+  const navigate = useNavigate();
+  const [graphs, setGraphs] = useState([]);
+  const [selectedGraphId, setSelectedGraphId] = useState(
+    () => localStorage.getItem("active_graph_id") || "builtin-malware"
+  );
   const [virusList, setVirusList] = useState([]);
   const [virus, setVirus] = useState(null);
   const [layers, setLayers] = useState(null);
@@ -97,6 +103,31 @@ export default function GraphDual() {
   const nodeIndexRef = useRef({ cn: new Map(), en: new Map() });
 
   // -------------------------
+  // 加载可访问图谱
+  // -------------------------
+  useEffect(() => {
+    if (!getToken()) {
+      navigate("/login", { replace: true });
+      return;
+    }
+    api.get("/api/graphs")
+      .then((res) => {
+        const list = res.data?.data ?? [];
+        setGraphs(list);
+        if (list.length && !list.some((item) => item.graph_id === selectedGraphId)) {
+          setSelectedGraphId(list[0].graph_id);
+        }
+      })
+      .catch((err) => {
+        if (err?.response?.status === 401) {
+          navigate("/login", { replace: true });
+          return;
+        }
+        setError(errorMessage(err, "加载图谱目录失败"));
+      });
+  }, [navigate, selectedGraphId]);
+
+  // -------------------------
   // 加载可对照的病毒列表
   // -------------------------
   useEffect(() => {
@@ -105,7 +136,7 @@ export default function GraphDual() {
       setListLoading(true);
       try {
         const res = await api.get("/api/graph/malware-list", {
-          params: { limit: VIRUS_LIST_LIMIT },
+          params: { limit: VIRUS_LIST_LIMIT, graph_id: selectedGraphId },
         });
         const list = res.data?.data ?? [];
         if (cancelled) return;
@@ -127,9 +158,7 @@ export default function GraphDual() {
     return () => {
       cancelled = true;
     };
-    // virus 只用于"首次自动选中"，不加入依赖，避免重复拉列表
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [selectedGraphId]);
 
   // -------------------------
   // 加载双层子图
@@ -142,7 +171,7 @@ export default function GraphDual() {
     setDetail(null);
     try {
       const res = await api.get("/api/graph/layers", {
-        params: { virus: name, limit: EDGE_LIMIT },
+        params: { virus: name, limit: EDGE_LIMIT, graph_id: selectedGraphId },
       });
       const data = res.data?.data;
       if (!data) {
@@ -157,7 +186,7 @@ export default function GraphDual() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedGraphId]);
 
   useEffect(() => {
     if (virus) loadLayers(virus);
@@ -184,7 +213,7 @@ export default function GraphDual() {
     setDetailLoading(true);
     try {
       const res = await api.get("/api/graph/node-detail", {
-        params: { norm_name: node.norm_name },
+        params: { norm_name: node.norm_name, graph_id: selectedGraphId },
       });
       setDetail(res.data?.data ?? null);
     } catch (err) {
@@ -193,7 +222,7 @@ export default function GraphDual() {
     } finally {
       setDetailLoading(false);
     }
-  }, []);
+  }, [selectedGraphId]);
 
   // -------------------------
   // 渲染左（中文）/ 右（英文）两个网络
@@ -371,6 +400,18 @@ export default function GraphDual() {
       <Card size="small" style={{ marginBottom: 12 }}>
         <Space wrap size="middle" style={{ width: "100%" }}>
           <Text strong>中英双层对照</Text>
+          <Select
+            style={{ width: 260 }}
+            value={selectedGraphId}
+            options={graphs.map((graph) => ({ value: graph.graph_id, label: graph.name }))}
+            onChange={(value) => {
+              localStorage.setItem("active_graph_id", value);
+              setSelectedGraphId(value);
+              setVirus(null);
+              setLayers(null);
+            }}
+            placeholder="先选择图谱"
+          />
           <Select
             showSearch
             style={{ width: 380 }}

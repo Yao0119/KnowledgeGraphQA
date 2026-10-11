@@ -40,7 +40,7 @@ def extract_keyword(question: str) -> str:
     return terms[0] if terms else question
 
 
-def query_neo4j_for_question(question: str) -> List[str]:
+def query_neo4j_for_question(question: str, graph_id: str = "builtin-malware") -> List[str]:
     """
     按问题检索相关三元组（保留此函数仅为兼容旧调用）
 
@@ -50,7 +50,7 @@ def query_neo4j_for_question(question: str) -> List[str]:
     Returns:
         list: 证据文本行列表
     """
-    result = retrieve_for_question(question)
+    result = retrieve_for_question(question, graph_id=graph_id)
     return [
         f"({t['source']} -[{t['relation']}]-> {t['target']})"
         for t in result["triples"]
@@ -101,7 +101,7 @@ def build_prompt(question: str, retrieval: Dict[str, Any]) -> str:
 直接给出答案，不需要重复问题。"""
 
 
-def answer_question_with_graph(question: str) -> Dict[str, Any]:
+def answer_question_with_graph(question: str, graph_id: str = "builtin-malware") -> Dict[str, Any]:
     """
     融合 Neo4j 知识图谱 + LLM 生成回答
 
@@ -127,7 +127,7 @@ def answer_question_with_graph(question: str) -> Dict[str, Any]:
         }
 
     # Step 1: 两阶段检索图谱证据
-    retrieval = retrieve_for_question(question)
+    retrieval = retrieve_for_question(question, graph_id=graph_id)
     triples = retrieval["triples"]
 
     # Step 2: 构造提示词

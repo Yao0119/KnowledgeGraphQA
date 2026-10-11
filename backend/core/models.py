@@ -3,7 +3,7 @@
 定义所有 SQLAlchemy ORM 模型
 """
 
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Enum, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Enum, ForeignKey, Boolean, Text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
@@ -35,6 +35,35 @@ class UserRole(str, enum.Enum):
     """
     ADMIN = "admin"
     CUSTOMER = "customer"
+
+
+class GraphStatus(str, enum.Enum):
+    PROCESSING = "processing"
+    READY = "ready"
+    FAILED = "failed"
+    ARCHIVED = "archived"
+
+
+class GraphSourceType(str, enum.Enum):
+    BUILTIN = "builtin"
+    TEXT = "text"
+    MANUAL = "manual"
+    IMPORTED = "imported"
+
+
+class GraphPermission(str, enum.Enum):
+    OWNER = "owner"
+    EDITOR = "editor"
+    VIEWER = "viewer"
+
+
+class GraphBuildStatus(str, enum.Enum):
+    PENDING = "pending"
+    EXTRACTING = "extracting"
+    BUILDING = "building"
+    READY = "ready"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 class User(Base):
@@ -76,6 +105,69 @@ class CustomerProfile(Base):
 
     # 关系定义
     user = relationship("User", back_populates="customer_profile")
+
+
+class KnowledgeGraph(Base):
+    """图谱目录；Neo4j 仍使用单库，graph_id 负责逻辑隔离。"""
+
+    __tablename__ = "knowledge_graphs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    slug = Column(String(120), unique=True, index=True, nullable=False)
+    name = Column(String(160), nullable=False)
+    description = Column(Text, nullable=True)
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    is_builtin = Column(Boolean, default=False, nullable=False)
+    is_public = Column(Boolean, default=False, nullable=False)
+    status = Column(Enum(GraphStatus), default=GraphStatus.READY, nullable=False)
+    source_type = Column(Enum(GraphSourceType), default=GraphSourceType.MANUAL, nullable=False)
+    language_mode = Column(String(12), default="dual", nullable=False)
+    node_count = Column(Integer, default=0, nullable=False)
+    edge_count = Column(Integer, default=0, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    owner = relationship("User", foreign_keys=[owner_id])
+    members = relationship("KnowledgeGraphMember", back_populates="graph", cascade="all, delete-orphan")
+    build_jobs = relationship("GraphBuildJob", back_populates="graph", cascade="all, delete-orphan")
+
+
+class KnowledgeGraphMember(Base):
+    """用户与非内置图谱的访问权限。"""
+
+    __tablename__ = "knowledge_graph_members"
+
+    id = Column(Integer, primary_key=True, index=True)
+    graph_id = Column(Integer, ForeignKey("knowledge_graphs.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    permission = Column(Enum(GraphPermission), default=GraphPermission.VIEWER, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    graph = relationship("KnowledgeGraph", back_populates="members")
+    user = relationship("User")
+
+
+class GraphBuildJob(Base):
+    """文本建图任务；第一版使用 FastAPI BackgroundTasks，后续可平移到 Redis/Celery。"""
+
+    __tablename__ = "graph_build_jobs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    graph_id = Column(Integer, ForeignKey("knowledge_graphs.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    status = Column(Enum(GraphBuildStatus), default=GraphBuildStatus.PENDING, nullable=False)
+    progress = Column(Integer, default=0, nullable=False)
+    current_stage = Column(String(80), nullable=True)
+    source_file_name = Column(String(255), nullable=False)
+    source_file_size = Column(Integer, default=0, nullable=False)
+    source_path = Column(String(500), nullable=False)
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    started_at = Column(DateTime, nullable=True)
+    finished_at = Column(DateTime, nullable=True)
+
+    graph = relationship("KnowledgeGraph", back_populates="build_jobs")
+    user = relationship("User")
 
 
 def init_db():

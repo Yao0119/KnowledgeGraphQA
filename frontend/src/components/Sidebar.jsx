@@ -16,7 +16,6 @@ import {
   ApartmentOutlined, // 中英双层对照
   BugOutlined, // 病毒检测
   QuestionCircleOutlined, // 问答检索
-  DeploymentUnitOutlined, // 系统推理
   TeamOutlined, // 客户管理
   SettingOutlined, // 系统设置（左下角）
   MenuFoldOutlined,
@@ -28,12 +27,11 @@ const SIDEBAR_WIDTH = 250;
 
 /** 菜单 key → 路由。用于菜单层的点击兜底（见下方 Menu 的 onClick） */
 const NAV_PATHS = {
-  home: "/dashboard",
+  home: "/dashboard/overview",
   graph: "/dashboard/graph",
   "graph-dual": "/dashboard/graph-dual",
   virus: "/dashboard/virus",
   qa: "/dashboard/qa",
-  reasoning: "/dashboard/reasoning",
   customers: "/dashboard/customers",
 };
 /**
@@ -64,7 +62,7 @@ export default function Sidebar({
   // 例如 /dashboard/graph -> graph
   // 注意：/dashboard 本身要归到 "home"，否则最后一段是 "dashboard"，侧边栏没有高亮
   const lastSegment = location.pathname.split("/").filter(Boolean).pop() || "home";
-  const selectedKey = lastSegment === "dashboard" ? "home" : lastSegment;
+  const selectedKey = ["dashboard", "overview"].includes(lastSegment) ? "home" : lastSegment;
 
   const iconSize = 17;
 
@@ -102,12 +100,11 @@ export default function Sidebar({
   });
 
   const items = [
-    nav("home", "系统概览", "/dashboard", HomeOutlined),
+    nav("home", "系统概览", "/dashboard/overview", HomeOutlined),
     nav("graph", "知识图谱管理", "/dashboard/graph", DatabaseOutlined),
     nav("graph-dual", "中英双层对照", "/dashboard/graph-dual", ApartmentOutlined),
     nav("virus", "病毒检测", "/dashboard/virus", BugOutlined),
     nav("qa", "问答检索", "/dashboard/qa", QuestionCircleOutlined),
-    nav("reasoning", "系统推理", "/dashboard/reasoning", DeploymentUnitOutlined),
     // 仅管理员可见
     ...(isAdmin ? [{ type: "divider" }, nav("customers", "客户管理", "/dashboard/customers", TeamOutlined)] : []),
   ];

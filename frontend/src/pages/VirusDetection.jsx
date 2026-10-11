@@ -7,16 +7,11 @@
  *   扫描中   投递槽变为扫描面板（横向光带 + 进度 + 四个阶段清单）
  *   有结论   结论横幅（唯一承载语义色的地方）+ 扫描信息 + 引擎明细表
  *
- * 关于后端：
- *   项目原有接口 `POST /api/virus-detection` 只接受文件名与类型，并不接收文件内容；
- *   而"上传文件"需要一个 multipart 接口。该接口**尚未实现**，所以这里默认走前端
- *   模拟流程（见 USE_UPLOAD_API 开关），保证 demo 可离线跑通。
- *   唯一"真实"的一步是 SHA-256：用浏览器 WebCrypto 直接读取本地文件算出摘要，
- *   结论再由摘要确定性地推导 —— 同一个文件每次得到同样的结果，方便反复演示。
+ * 文件内容会通过本项目后端转发到内部 ClamAV REST 服务，浏览器不会直接访问扫描容器。
  */
 
 import { useEffect, useRef, useState } from "react";
-import { Button, Card, Progress, Segmented, Space, Table, Tag, Tooltip, Typography, message } from "antd";
+import { Button, Card, Progress, Table, Tag, Tooltip, Typography, message } from "antd";
 import {
   CheckCircleOutlined,
   CloseOutlined,
@@ -30,17 +25,8 @@ import api, { errorMessage } from "../api";
 
 const { Title, Text, Paragraph } = Typography;
 
-/** 单文件上限。演示用，超过就不读进内存了 */
+/** 单文件上限；后端会再次校验，前端先阻止过大的文件进入内存。 */
 const MAX_FILE_SIZE = 100 * 1024 * 1024;
-/** EICAR 标准测试文件的 SHA-256：杀软行业通用的"无害假病毒"，命中即按恶意出具报告 */
-const EICAR_SHA256 = "275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f";
-
-/**
- * 是否调用真实上传接口。
- * 后端尚未实现 `POST /api/virus-detection/upload`（multipart/form-data，字段名 file），
- * 后端就绪后把这里改成 true，前端就会把文件真正提交上去，其余逻辑不用动。
- */
-const USE_UPLOAD_API = false;
 
 /** 检测阶段。前三个阶段与后端 scan_results 的引擎一一对应 */
 const SCAN_STAGES = [
@@ -51,8 +37,6 @@ const SCAN_STAGES = [
 ];
 
 const THREAT_LABEL = { High: "高", Medium: "中", Low: "低" };
-
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** 取扩展名（小写，不含点） */
 function extOf(name = "") {
@@ -91,7 +75,7 @@ function formatTime(ts) {
 /**
  * 计算文件 SHA-256。
  * WebCrypto 只在安全上下文可用（http://localhost 算安全），拿不到时退化为
- * 基于文件元数据的轻量摘要 —— 演示流程不能因为跑在 http 的局域网地址上就崩掉。
+ * 基于文件元数据的轻量摘要 —— 局域网地址下仍能展示文件标识。
  */
 async function fileDigest(file) {
   try {
@@ -101,7 +85,7 @@ async function fileDigest(file) {
       return [...new Uint8Array(hash)].map((b) => b.toString(16).padStart(2, "0")).join("");
     }
   } catch {
-    // 读取失败时静默退化，不打断演示
+    // 读取失败时退化为元数据摘要，不打断界面流程
   }
   return fallbackDigest(`${file.name}|${file.size}|${file.lastModified}`);
 }
@@ -119,56 +103,7 @@ function fallbackDigest(seed) {
   return `${part(a)}${part(b)}`.repeat(4).slice(0, 64);
 }
 
-function maliciousReport(file, digest, reason) {
-  const signature = `Trojan.Win32.${digest.slice(0, 6)}.gen`;
-  return {
-    is_malicious: true,
-    threat_level: "High",
-    signature,
-    reason,
-    scan_results: [
-      { engine: "静态分析", result: "入口点存在可疑的代码注入痕迹", status: "恶意" },
-      { engine: "行为沙箱", result: "运行后尝试写入启动项并回连外部地址", status: "恶意" },
-      { engine: "特征码库", result: `匹配 ${signature}`, status: "恶意" },
-    ],
-    summary: `文件 ${file.name} 命中已知恶意特征，建议立即隔离并删除。`,
-  };
-}
-
-function cleanReport(file) {
-  return {
-    is_malicious: false,
-    threat_level: "Low",
-    signature: null,
-    reason: null,
-    scan_results: [
-      { engine: "静态分析", result: "文件结构与节区正常", status: "安全" },
-      { engine: "行为沙箱", result: "隔离环境中未观察到可疑行为", status: "安全" },
-      { engine: "特征码库", result: "未匹配到已知病毒特征", status: "安全" },
-    ],
-    summary: `文件 ${file.name} 扫描完成，未发现明显威胁。`,
-  };
-}
-
-/**
- * 演示结论：由文件摘要确定性推导（不是随机数，同一个文件结果稳定）。
- * outcome 是页面上的演示开关，用于在答辩时强制走通"恶意 / 安全"两条分支。
- */
-function buildDemoVerdict(file, digest, outcome) {
-  if (outcome === "malicious") {
-    return maliciousReport(file, digest, "演示开关指定：按恶意样本出具报告");
-  }
-  if (outcome === "clean") return cleanReport(file);
-  if (digest === EICAR_SHA256) {
-    return maliciousReport(file, digest, "命中 EICAR 标准测试特征");
-  }
-  const bucket = Number.parseInt(digest.slice(0, 2), 16) % 100;
-  return bucket < 32
-    ? maliciousReport(file, digest, "指纹落入演示用的高风险区间")
-    : cleanReport(file);
-}
-
-/** 真实上传（后端就绪后启用）：multipart/form-data，字段名 file */
+/** 真实上传：multipart/form-data，字段名 file */
 async function requestScanFromServer(file) {
   const form = new FormData();
   form.append("file", file);
@@ -184,8 +119,6 @@ export default function VirusDetection() {
   const [activeStage, setActiveStage] = useState(-1);
   const [doneStages, setDoneStages] = useState(0);
   const [report, setReport] = useState(null);
-  // 演示开关：auto 按指纹判定，malicious / clean 强制结论
-  const [outcome, setOutcome] = useState("auto");
 
   const inputRef = useRef(null);
   const aliveRef = useRef(true);
@@ -200,9 +133,7 @@ export default function VirusDetection() {
     };
   }, []);
 
-  const uploadNote = USE_UPLOAD_API
-    ? "文件将提交到后端扫描服务"
-    : "文件只在本机读取，不会上传到任何服务";
+  const uploadNote = "文件将提交到后端扫描服务，浏览器不会直接访问扫描容器";
 
   /** 接收一个文件：校验 → 清掉上一轮的结论 */
   const acceptFile = (picked) => {
@@ -212,7 +143,7 @@ export default function VirusDetection() {
       return;
     }
     if (picked.size > MAX_FILE_SIZE) {
-      message.warning(`文件超过 ${formatSize(MAX_FILE_SIZE)}，演示流程不处理过大的文件`);
+      message.warning(`文件超过 ${formatSize(MAX_FILE_SIZE)}，暂不支持扫描过大的文件`);
       return;
     }
     setFile(picked);
@@ -242,7 +173,7 @@ export default function VirusDetection() {
     if (scanning) return;
     const dropped = e.dataTransfer?.files;
     if (!dropped?.length) return;
-    if (dropped.length > 1) message.info("演示一次只处理一个文件，已取第一个");
+    if (dropped.length > 1) message.info("一次只处理一个文件，已取第一个");
     acceptFile(dropped[0]);
   };
 
@@ -279,23 +210,11 @@ export default function VirusDetection() {
       setActiveStage(1);
 
       let verdict;
-      if (USE_UPLOAD_API) {
-        // 真实接口一次返回结论，四个阶段在等待期间保持"进行中"的观感，回来后一起收尾
-        verdict = await requestScanFromServer(file);
-        if (!stillCurrent()) return;
-        setDoneStages(SCAN_STAGES.length);
-        setProgress(100);
-      } else {
-        // 阶段二~四：本地演示，逐个走完
-        for (let i = 1; i < SCAN_STAGES.length; i += 1) {
-          setActiveStage(i);
-          await sleep(340 + i * 150);
-          if (!stillCurrent()) return;
-          setDoneStages(i + 1);
-          setProgress(Math.round(((i + 1) / SCAN_STAGES.length) * 100));
-        }
-        verdict = buildDemoVerdict(file, digest, outcome);
-      }
+      // ClamAV 是一次请求，阶段进度用于表达“正在交给后端扫描”的过程。
+      verdict = await requestScanFromServer(file);
+      if (!stillCurrent()) return;
+      setDoneStages(SCAN_STAGES.length);
+      setProgress(100);
 
       if (!stillCurrent()) return;
       setProgress(100);
@@ -358,12 +277,6 @@ export default function VirusDetection() {
         <Paragraph type="secondary" style={{ marginBottom: 0 }}>
           把可疑文件拖进来，检查它是否携带病毒、木马、蠕虫等恶意代码
         </Paragraph>
-        {/* 后端上传接口尚未实现，这句必须显式写出来，避免把模拟结论误当成真实扫描 */}
-        {!USE_UPLOAD_API && (
-          <Text type="secondary" style={{ fontSize: 12 }}>
-
-          </Text>
-        )}
       </div>
 
       <Card
@@ -490,22 +403,6 @@ export default function VirusDetection() {
                 换一个文件
               </Button>
 
-              {/* 演示开关：答辩时用来强制走通恶意 / 安全两条分支 */}
-              <Space size={8} style={{ marginLeft: "auto" }}>
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  演示结果
-                </Text>
-                <Segmented
-                  size="small"
-                  value={outcome}
-                  onChange={setOutcome}
-                  options={[
-                    { label: "自动判定", value: "auto" },
-                    { label: "恶意", value: "malicious" },
-                    { label: "安全", value: "clean" },
-                  ]}
-                />
-              </Space>
             </div>
 
             <Text

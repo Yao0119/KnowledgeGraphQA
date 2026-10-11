@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Form, Input, Button, message, Card, Spin, Row, Col, Divider } from "antd";
-import { ArrowLeftOutlined, SaveOutlined, PhoneOutlined } from "@ant-design/icons";
+import { ArrowLeftOutlined, LockOutlined, SaveOutlined, PhoneOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 
 import api, { getToken, getCurrentUser, errorMessage } from "../api";
@@ -8,10 +8,12 @@ import api, { getToken, getCurrentUser, errorMessage } from "../api";
 export default function CustomerProfile() {
   const navigate = useNavigate();
   const [editForm] = Form.useForm();
+  const [passwordForm] = Form.useForm();
   const [userData, setUserData] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [passwordLoading, setPasswordLoading] = useState(false);
 
   useEffect(() => {
     if (!getToken()) {
@@ -100,6 +102,25 @@ export default function CustomerProfile() {
       message.error(errorMessage(err, "更新个人信息失败"));
     } finally {
       setEditLoading(false);
+    }
+  };
+
+  const handleChangePassword = async (values) => {
+    setPasswordLoading(true);
+    try {
+      await api.post("/api/customer/change-password", {
+        current_password: values.current_password,
+        new_password: values.new_password,
+      });
+      message.success("密码已修改，请重新登录");
+      passwordForm.resetFields();
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      setTimeout(() => navigate("/login", { replace: true }), 800);
+    } catch (err) {
+      message.error(errorMessage(err, "修改密码失败"));
+    } finally {
+      setPasswordLoading(false);
     }
   };
 
@@ -299,6 +320,59 @@ export default function CustomerProfile() {
                       </Button>
                     </Form.Item>
                   )}
+                </Form>
+              </div>
+
+              <Divider />
+
+              <div style={styles.section}>
+                <h3 style={styles.sectionTitle}>安全设置</h3>
+                <p style={{ color: "var(--c-fg-muted)", marginTop: -6, marginBottom: 18 }}>
+                  修改密码后，当前登录会话会结束，需要使用新密码重新登录。
+                </p>
+                <Form form={passwordForm} layout="vertical" onFinish={handleChangePassword}>
+                  <Row gutter={[20, 0]}>
+                    <Col xs={24} sm={8}>
+                      <Form.Item
+                        label="当前密码"
+                        name="current_password"
+                        rules={[{ required: true, message: "请输入当前密码" }]}
+                      >
+                        <Input.Password prefix={<LockOutlined />} autoComplete="current-password" />
+                      </Form.Item>
+                    </Col>
+                    <Col xs={24} sm={8}>
+                      <Form.Item
+                        label="新密码"
+                        name="new_password"
+                        rules={[{ required: true, min: 6, message: "密码至少 6 位" }]}
+                      >
+                        <Input.Password prefix={<LockOutlined />} autoComplete="new-password" />
+                      </Form.Item>
+                    </Col>
+                    <Col xs={24} sm={8}>
+                      <Form.Item
+                        label="确认新密码"
+                        name="confirm_password"
+                        dependencies={["new_password"]}
+                        rules={[
+                          { required: true, message: "请再次输入新密码" },
+                          ({ getFieldValue }) => ({
+                            validator(_, value) {
+                              return !value || getFieldValue("new_password") === value
+                                ? Promise.resolve()
+                                : Promise.reject(new Error("两次输入的密码不一致"));
+                            },
+                          }),
+                        ]}
+                      >
+                        <Input.Password prefix={<LockOutlined />} autoComplete="new-password" />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+                  <Button type="default" htmlType="submit" loading={passwordLoading}>
+                    修改密码
+                  </Button>
                 </Form>
               </div>
             </>

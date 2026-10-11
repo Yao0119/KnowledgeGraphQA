@@ -4,7 +4,31 @@ import { ConfigProvider, App as AntApp } from "antd";
 import zhCN from "antd/locale/zh_CN";
 import App from "./App";
 import { antdTheme } from "./theme";
+import { applyPreferences, getPreferences } from "./preferences";
 import "./index.css";
+
+// 在首屏渲染前应用本地偏好，避免主题或字号先闪一下默认值。
+const currentUser = (() => {
+  try {
+    return JSON.parse(localStorage.getItem("user") || "null");
+  } catch {
+    return null;
+  }
+})();
+applyPreferences(getPreferences(currentUser?.id));
+
+const systemThemeQuery = window.matchMedia?.("(prefers-color-scheme: dark)");
+systemThemeQuery?.addEventListener?.("change", () => {
+  const user = (() => {
+    try {
+      return JSON.parse(localStorage.getItem("user") || "null");
+    } catch {
+      return null;
+    }
+  })();
+  const preferences = getPreferences(user?.id);
+  if (preferences.theme === "system") applyPreferences(preferences);
+});
 
 /**
  * 应用根

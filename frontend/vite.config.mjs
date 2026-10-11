@@ -21,10 +21,16 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     port: 5173,
+    // host: true 让开发服务器监听所有网卡（等价于命令行 --host 0.0.0.0）。
+    // 不加这一行只会绑 127.0.0.1，同一 WiFi 下的手机 / 其他电脑访问不到。
+    // 后端不需要单独暴露：/api 由下面的 proxy 转发到 127.0.0.1:8000，
+    // 对浏览器而言始终是同源请求，因此也不涉及跨域配置。
+    host: true,
     proxy,
   },
   preview: {
     port: 4173,
+    host: true,
     proxy,
   },
 })

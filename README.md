@@ -36,7 +36,7 @@
 | **智能问答** | 两阶段图谱检索（实体字面命中 → 中文 n-gram 关键词兜底）+ LLM 生成；回答下方可展开图谱依据 |
 | **系统推理** | LLM 结合图谱证据推理 |
 | **威胁预测** | 后端已实现，前端页面为占位 |
-| **病毒检测** | 拖拽 / 点选**上传文件** + 分阶段扫描反馈 + 引擎明细报告；**前端演示流程**，后端为模拟实现（随机判定） |
+| **病毒检测** | 拖拽 / 点选**上传文件** + 分阶段扫描反馈 + ClamAV 引擎明细报告；扫描服务不可用时明确返回错误 |
 | **系统设置** | 页面上配置 LLM 后端 / API Key / 模型 / 基址；保存即生效并写入 `.env`；带连通性测试 |
 
 ---
@@ -352,7 +352,7 @@ cd frontend && npm run test-api
 | `/dashboard/graph-dual` | **中英双层对照** | 左右两个图谱面板 + 跨面板联动 + 中英属性对比 |
 | `/dashboard/qa` | 问答检索 | 提问、回答、可展开的图谱依据 |
 | `/dashboard/reasoning` | 系统推理 | |
-| `/dashboard/virus` | 病毒检测 | 拖拽 / 点选上传文件 + 扫描报告；上传接口未接入，结论由前端模拟 |
+| `/dashboard/virus` | 病毒检测 | 拖拽 / 点选上传文件 + ClamAV 扫描报告 |
 | `/dashboard/predict` | 预测 | 占位 |
 | `/dashboard/customers` | 客户管理 | 仅管理员 |
 | `/customer-profile`、`/admin-profile` | 个人资料 | |
@@ -417,8 +417,8 @@ cd frontend && npm run test-api
 | POST | `/api/qa/ask` | 知识图谱问答 |
 | POST | `/api/reasoning/reason` | LLM + 图谱推理 |
 | POST | `/api/prediction/predict` | 威胁预测 |
-| POST | `/api/virus-detection` | 病毒检测（**模拟实现**，只收文件名与类型） |
-| POST | `/api/virus-detection/upload` | 文件上传检测（**尚未实现**）。前端已按 `multipart/form-data`、字段名 `file` 预留调用 |
+| POST | `/api/virus-detection` | 旧版接口（410），不再返回模拟结论 |
+| POST | `/api/virus-detection/upload` | 文件上传检测，转发到内部 ClamAV REST 服务 |
 | GET | `/api/functions/health` | 功能模块健康检查 |
 
 ### 管理员（需鉴权）
@@ -716,8 +716,8 @@ pkill ollama
 | **图上不显示的文本节点** | `解决方案 / 病毒行为 / 综合描述` 合计约 72% 的节点，名字是整句中文。默认在图上隐藏（可开关），它们仍存在于图谱中，也可在「节点对照」里查看全文 |
 | **中英对照依赖源数据** | 只有中英两层都存在的病毒才能对照；两个源文件的病毒集合相差约 100 条 |
 | **中文层的翻译范围有限** | 只有 `Platform` / `Category` 两类实体名有中文翻译表；病毒名 / 家族 / 别名是拉丁标识符，源数据本身没有中文名 |
-| **病毒检测是模拟实现** | 后端为随机判定，并非真实扫描 |
-| **文件上传检测未接入后端** | 前端已实现拖拽 / 点选上传、分阶段扫描反馈与引擎报告，结论由文件 **SHA-256** 确定性推导（同一文件结果稳定，便于反复演示，命中 EICAR 测试文件必判恶意）。后端 `/api/virus-detection/upload` 尚未实现，把 `frontend/src/pages/VirusDetection.jsx` 里的 `USE_UPLOAD_API` 改为 `true` 即走真实接口 |
+| **病毒检测依赖外部服务** | 需要启动 ClamAV REST 容器；服务不可用时页面会显示扫描失败，不会生成模拟结论 |
+| **文件上传检测依赖 ClamAV REST** | 前端负责文件选择和报告呈现，FastAPI 将文件转发给内部 ClamAV 服务；请先启动 `deploy/clamav-rest.compose.yml` 并配置 `CLAMAV_REST_URL` |
 | **预测页未接入** | 后端 `/api/prediction/predict` 已实现，前端页面为占位 |
 | **Node 版本提示** | 健康检查里可能出现「服务状态：异常」，那是 LLM 未配置导致的 `degraded`，不是后端故障 |
 | **系统设置仅管理员** | API Key 属系统级配置，写接口复用了 `require_admin` |

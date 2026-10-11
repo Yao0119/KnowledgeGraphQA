@@ -6,32 +6,62 @@
  */
 
 import { useState, useRef, useEffect } from "react";
-import { Input } from "antd";
-import { SendOutlined, LoadingOutlined } from "@ant-design/icons";
+import { Button, Input } from "antd";
+import { ClearOutlined, DeleteOutlined, SendOutlined, LoadingOutlined } from "@ant-design/icons";
 
-import api, { errorMessage } from "../api";
+import api, { errorMessage, getCurrentUser } from "../api";
 
 export default function QA() {
+  const graphId = localStorage.getItem("active_graph_id") || "builtin-malware";
+  const userId = getCurrentUser()?.id || "anonymous";
+  const historyKey = `qa_history:${userId}:${graphId}`;
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const messagesRef = useRef(null);
+  const historyReadyRef = useRef(false);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(historyKey);
+      const parsed = raw ? JSON.parse(raw) : [];
+      setMessages(Array.isArray(parsed) ? parsed.slice(-100) : []);
+    } catch {
+      localStorage.removeItem(historyKey);
+      setMessages([]);
+    } finally {
+      historyReadyRef.current = true;
+    }
+  }, [historyKey]);
+
+  useEffect(() => {
+    if (!historyReadyRef.current) return;
+    try {
+      localStorage.setItem(historyKey, JSON.stringify(messages.slice(-100)));
+    } catch {
+      // 本地存储空间不足或被禁用时，问答仍可继续使用
+    }
+  }, [historyKey, messages]);
 
   const handleAsk = async () => {
     if (!question.trim() || loading) return;
 
     const asked = question.trim();
-    setMessages((prev) => [...prev, { role: "user", content: asked }]);
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", content: asked, created_at: new Date().toISOString() },
+    ]);
     setQuestion("");
     setLoading(true);
 
     try {
-      const res = await api.post("/api/qa/ask", { question: asked });
+      const res = await api.post("/api/qa/ask", { question: asked, graph_id: graphId });
       setMessages((prev) => [
         ...prev,
         {
           role: "bot",
           content: res.data?.answer || "暂无回答。",
+          created_at: new Date().toISOString(),
           // 后端现在会返回所用三元组与检索策略，展示出来便于确认答案确实有图谱依据
           sources: res.data?.sources ?? [],
           retrieval: res.data?.retrieval ?? null,
@@ -41,11 +71,20 @@ export default function QA() {
       // 统一从 FastAPI 的 detail 字段取错误信息（原实现读的是 error 字段，取不到）
       setMessages((prev) => [
         ...prev,
-        { role: "bot", content: `❌ ${errorMessage(err)}` },
+        { role: "bot", content: `❌ ${errorMessage(err)}`, created_at: new Date().toISOString() },
       ]);
     } finally {
       setLoading(false);
     }
+  };
+
+  const clearHistory = () => {
+    setMessages([]);
+    localStorage.removeItem(historyKey);
+  };
+
+  const removeMessage = (index) => {
+    setMessages((prev) => prev.filter((_, messageIndex) => messageIndex !== index));
   };
 
   useEffect(() => {
@@ -87,6 +126,11 @@ export default function QA() {
             paddingBottom: 24,
           }}
         >
+          <div style={{ display: "flex", justifyContent: "flex-end", padding: "10px 16px 0" }}>
+            <Button size="small" type="text" icon={<ClearOutlined />} onClick={clearHistory} disabled={!messages.length}>
+              清空当前会话
+            </Button>
+          </div>
           {/* 空状态：原来没有消息时就是一大片空白，看不出这个页面是干什么的 */}
           {messages.length === 0 && (
             <div
@@ -120,6 +164,15 @@ export default function QA() {
                 marginBottom: 10,
               }}
             >
+              <button
+                type="button"
+                className="qa-message-delete"
+                aria-label={`删除第 ${idx + 1} 条消息`}
+                title="删除这条消息"
+                onClick={() => removeMessage(idx)}
+              >
+                <DeleteOutlined aria-hidden="true" />
+              </button>
               <div
                 style={{
                   maxWidth: "72%",

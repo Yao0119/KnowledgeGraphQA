@@ -7,6 +7,8 @@ from neo4j import GraphDatabase
 from typing import Dict, List, Any, Optional
 from ..core.config import NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD
 
+DEFAULT_GRAPH_ID = "builtin-malware"
+
 # ========================================
 # 节点展示辅助
 # ========================================
@@ -65,6 +67,10 @@ def node_display_type(node) -> str:
         str: 家族标签（Virus/Trojan/...）或领域标签（Family/Platform/...）；
              都没有时返回 "Node"
     """
+    custom_type = str(node.get("node_type") or "").strip()
+    if custom_type:
+        return custom_type
+
     labels = set(node.labels) - _COMMON_LABELS
     for family in _MALWARE_FAMILIES:
         if family in labels:
@@ -142,7 +148,7 @@ def get_neo4j_driver():
 # 图谱查询函数
 # ========================================
 
-def get_graph_summary() -> Dict[str, int]:
+def get_graph_summary(graph_id: str = DEFAULT_GRAPH_ID) -> Dict[str, int]:
     """
     获取图谱统计信息
     统计节点和关系的总数
@@ -153,15 +159,24 @@ def get_graph_summary() -> Dict[str, int]:
     try:
         driver = get_neo4j_driver()
         with driver.session() as session:
-            node_count = session.run("MATCH (n) RETURN count(n) AS c").single()["c"]
-            rel_count = session.run("MATCH ()-[r]->() RETURN count(r) AS c").single()["c"]
+            node_count = session.run(
+                "MATCH (n) WHERE coalesce(n.graph_id, 'builtin-malware') = $graph_id RETURN count(n) AS c",
+                graph_id=graph_id,
+            ).single()["c"]
+            rel_count = session.run(
+                "MATCH (a)-[r]->(b) "
+                "WHERE coalesce(a.graph_id, 'builtin-malware') = $graph_id "
+                "AND coalesce(b.graph_id, 'builtin-malware') = $graph_id "
+                "RETURN count(r) AS c",
+                graph_id=graph_id,
+            ).single()["c"]
             return {"nodes": node_count, "relationships": rel_count}
     except Exception as e:
         print(f"⚠️ 获取图谱统计信息失败: {e}")
         return {"nodes": 0, "relationships": 0}
 
 
-def get_sample_triples(limit: int = 20) -> Dict[str, List]:
+def get_sample_triples(limit: int = 20, graph_id: str = DEFAULT_GRAPH_ID) -> Dict[str, List]:
     """
     获取随机三元组样本
     用于显示知识图谱的示例内容
@@ -178,10 +193,13 @@ def get_sample_triples(limit: int = 20) -> Dict[str, List]:
             result = session.run(
                 """
                 MATCH (a)-[r]->(b)
+                WHERE coalesce(a.graph_id, 'builtin-malware') = $graph_id
+                  AND coalesce(b.graph_id, 'builtin-malware') = $graph_id
                 RETURN a, r, b
                 LIMIT $limit
                 """,
                 limit=limit
+                , graph_id=graph_id
             )
             data = []
             for record in result:
@@ -190,7 +208,7 @@ def get_sample_triples(limit: int = 20) -> Dict[str, List]:
                 r = record["r"]
                 data.append({
                     "source": {"name": node_display_name(a)},
-                    "relation": r.type,
+                    "relation": r.get("relation_name") or r.type,
                     "target": {"name": node_display_name(b)},
                 })
             return {"data": data}
@@ -204,6 +222,7 @@ def get_full_graph(
     seeds: int = 25,
     offset: int = 0,
     hide_text: bool = False,
+    graph_id: str = DEFAULT_GRAPH_ID,
 ) -> Dict[str, Any]:
     """
     取一个「可用于可视化」的子图样本（节点 + 边）
@@ -236,11 +255,13 @@ def get_full_graph(
             result = session.run(
                 """
                 MATCH (a:Malware)
+                WHERE coalesce(a.graph_id, 'builtin-malware') = $graph_id
                 WITH a SKIP $offset LIMIT $seeds
                 MATCH (a)-[r]->(b)
-                WHERE $hide_text = false
+                WHERE coalesce(b.graph_id, 'builtin-malware') = $graph_id
+                  AND ($hide_text = false
                    OR NOT (b:Solution OR b:Behavior OR b:Description
-                           OR b:DateValue OR b:CountValue)
+                           OR b:DateValue OR b:CountValue))
                 RETURN a, r, b
                 LIMIT $limit
                 """,
@@ -248,6 +269,7 @@ def get_full_graph(
                 seeds=seeds,
                 limit=limit,
                 hide_text=bool(hide_text),
+                graph_id=graph_id,
             )
 
             nodes: Dict[str, Dict[str, Any]] = {}
@@ -270,11 +292,12 @@ def get_full_graph(
                 edges.append({
                     "from": a.element_id,
                     "to": b.element_id,
-                    "label": r.type,
+                    "label": r.get("relation_name") or r.type,
                 })
 
             total_malware = session.run(
-                "MATCH (a:Malware) RETURN count(a) AS c"
+                "MATCH (a:Malware) WHERE coalesce(a.graph_id, 'builtin-malware') = $graph_id RETURN count(a) AS c",
+                graph_id=graph_id,
             ).single()["c"]
 
             return {
@@ -310,7 +333,7 @@ def get_full_graph(
 #     name_orig 保留源数据原值（"MSExcel"），跨层对应靠它
 
 
-def list_dual_malware(limit: int = 200, keyword: str = "") -> List[Dict[str, Any]]:
+def list_dual_malware(limit: int = 200, keyword: str = "", graph_id: str = DEFAULT_GRAPH_ID) -> List[Dict[str, Any]]:
     """
     列出**中英两层都有**的恶意软件（即核心节点已建立 ALIGN_WITH 映射的）
 
@@ -332,7 +355,9 @@ def list_dual_malware(limit: int = 200, keyword: str = "") -> List[Dict[str, Any
             result = session.run(
                 """
                 MATCH (cn:Malware {lang:'cn'})-[:ALIGN_WITH]->(en:Malware {lang:'en'})
-                WHERE $keyword = '' OR toLower(cn.name) CONTAINS toLower($keyword)
+                WHERE coalesce(cn.graph_id, 'builtin-malware') = $graph_id
+                  AND coalesce(en.graph_id, 'builtin-malware') = $graph_id
+                  AND ($keyword = '' OR toLower(cn.name) CONTAINS toLower($keyword))
                 RETURN cn.name AS name,
                        cn.mal_type AS mal_type,
                        COUNT { (cn)--() } AS degree
@@ -341,6 +366,7 @@ def list_dual_malware(limit: int = 200, keyword: str = "") -> List[Dict[str, Any
                 """,
                 limit=limit,
                 keyword=keyword or "",
+                graph_id=graph_id,
             )
             return [
                 {
@@ -355,7 +381,7 @@ def list_dual_malware(limit: int = 200, keyword: str = "") -> List[Dict[str, Any
         return []
 
 
-def get_layer_graph(lang: str, malware_name: str, limit: int = 120) -> Dict[str, Any]:
+def get_layer_graph(lang: str, malware_name: str, limit: int = 120, graph_id: str = DEFAULT_GRAPH_ID) -> Dict[str, Any]:
     """
     取**单一语言层**里、以某个恶意软件为锚的子图
 
@@ -376,14 +402,16 @@ def get_layer_graph(lang: str, malware_name: str, limit: int = 120) -> Dict[str,
             result = session.run(
                 """
                 MATCH (a:Malware {lang: $lang, name: $name})
+                WHERE coalesce(a.graph_id, 'builtin-malware') = $graph_id
                 OPTIONAL MATCH (a)-[r]->(b)
-                WHERE b.lang = $lang
+                WHERE b.lang = $lang AND coalesce(b.graph_id, 'builtin-malware') = $graph_id
                 RETURN a, r, b
                 LIMIT $limit
                 """,
                 lang=lang,
                 name=malware_name,
                 limit=limit,
+                graph_id=graph_id,
             )
 
             nodes: Dict[str, Dict[str, Any]] = {}
@@ -401,7 +429,7 @@ def get_layer_graph(lang: str, malware_name: str, limit: int = 120) -> Dict[str,
                 edges.append({
                     "from": a.element_id,
                     "to": b.element_id,
-                    "label": r.type,
+                    "label": r.get("relation_name") or r.type,
                 })
 
             return {"nodes": list(nodes.values()), "edges": edges}
@@ -410,7 +438,7 @@ def get_layer_graph(lang: str, malware_name: str, limit: int = 120) -> Dict[str,
         return {"nodes": [], "edges": []}
 
 
-def get_dual_layer_graph(malware_name: str, limit: int = 120) -> Dict[str, Any]:
+def get_dual_layer_graph(malware_name: str, limit: int = 120, graph_id: str = DEFAULT_GRAPH_ID) -> Dict[str, Any]:
     """
     一次取回中英两层子图 + 核心节点的映射关系
 
@@ -421,8 +449,8 @@ def get_dual_layer_graph(malware_name: str, limit: int = 120) -> Dict[str, Any]:
     Returns:
         dict: {virus, cn:{nodes,edges}, en:{nodes,edges}, core:{cn,en}, matched}
     """
-    cn_graph = get_layer_graph("cn", malware_name, limit)
-    en_graph = get_layer_graph("en", malware_name, limit)
+    cn_graph = get_layer_graph("cn", malware_name, limit, graph_id)
+    en_graph = get_layer_graph("en", malware_name, limit, graph_id)
 
     core = {"cn": None, "en": None}
     try:
@@ -433,9 +461,12 @@ def get_dual_layer_graph(malware_name: str, limit: int = 120) -> Dict[str, Any]:
                 MATCH (cn:Malware {lang:'cn', name: $name})
                       -[:ALIGN_WITH]->
                       (en:Malware {lang:'en', name: $name})
+                WHERE coalesce(cn.graph_id, 'builtin-malware') = $graph_id
+                  AND coalesce(en.graph_id, 'builtin-malware') = $graph_id
                 RETURN elementId(cn) AS cn_id, elementId(en) AS en_id
                 """,
                 name=malware_name,
+                graph_id=graph_id,
             ).single()
             if record:
                 core = {"cn": record["cn_id"], "en": record["en_id"]}
@@ -451,7 +482,7 @@ def get_dual_layer_graph(malware_name: str, limit: int = 120) -> Dict[str, Any]:
     }
 
 
-def get_node_detail(norm_name: str) -> Dict[str, Any]:
+def get_node_detail(norm_name: str, graph_id: str = DEFAULT_GRAPH_ID) -> Dict[str, Any]:
     """
     按 norm_name 查出"同一个实体的中英两版"，供并排属性对比
 
@@ -471,10 +502,12 @@ def get_node_detail(norm_name: str) -> Dict[str, Any]:
             result = session.run(
                 """
                 MATCH (n:Entity {norm_name: $norm})
+                WHERE coalesce(n.graph_id, 'builtin-malware') = $graph_id
                 RETURN n
                 LIMIT 20
                 """,
                 norm=norm_name,
+                graph_id=graph_id,
             )
             for record in result:
                 node = record["n"]

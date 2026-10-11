@@ -152,6 +152,7 @@ async def get_sample_nodes(limit: int = Query(10, ge=1, le=200)) -> Dict[str, Li
 @router.post("/node", status_code=201)
 async def create_node(
     payload: NodeCreateRequest,
+    graph_id: str = "builtin-malware",
     _: Optional[User] = Depends(require_admin),
 ) -> Dict[str, Any]:
     """
@@ -165,9 +166,10 @@ async def create_node(
     """
     label = safe_label(payload.label)
     records = run_cypher(
-        f"CREATE (n:`{label}` {{name: $name}}) "
+        f"CREATE (n:`{label}` {{name: $name, graph_id: $graph_id}}) "
         "RETURN elementId(n) AS id, n.name AS name, labels(n) AS labels",
         name=payload.name,
+        graph_id=graph_id,
     )
     if not records:
         raise HTTPException(status_code=500, detail="节点创建失败")
@@ -187,6 +189,7 @@ async def create_node(
 async def update_node(
     node_id: str,
     payload: NodeUpdateRequest,
+    graph_id: str = "builtin-malware",
     _: Optional[User] = Depends(require_admin),
 ) -> Dict[str, Any]:
     """
@@ -201,8 +204,10 @@ async def update_node(
     """
     # 先确认节点存在，避免"更新成功但什么也没发生"的假成功
     exists = run_cypher(
-        "MATCH (n) WHERE elementId(n) = $id RETURN elementId(n) AS id",
+        "MATCH (n) WHERE coalesce(n.graph_id, 'builtin-malware') = $graph_id "
+        "AND elementId(n) = $id RETURN elementId(n) AS id",
         id=node_id,
+        graph_id=graph_id,
     )
     if not exists:
         raise HTTPException(status_code=404, detail="节点不存在")
@@ -211,17 +216,21 @@ async def update_node(
     if payload.label:
         new_label = safe_label(payload.label)
         run_cypher(
-            "MATCH (n) WHERE elementId(n) = $id "
+            "MATCH (n) WHERE coalesce(n.graph_id, 'builtin-malware') = $graph_id "
+            "AND elementId(n) = $id "
             f"SET n:`{new_label}`",
             id=node_id,
+            graph_id=graph_id,
         )
 
     records = run_cypher(
-        "MATCH (n) WHERE elementId(n) = $id "
+        "MATCH (n) WHERE coalesce(n.graph_id, 'builtin-malware') = $graph_id "
+        "AND elementId(n) = $id "
         "SET n.name = $name "
         "RETURN elementId(n) AS id, n.name AS name",
         id=node_id,
         name=payload.name,
+        graph_id=graph_id,
     )
 
     rec = records[0] if records else {}
@@ -232,6 +241,7 @@ async def update_node(
 @router.delete("/node/{node_id}")
 async def delete_node(
     node_id: str,
+    graph_id: str = "builtin-malware",
     _: Optional[User] = Depends(require_admin),
 ) -> Dict[str, Any]:
     """
@@ -244,10 +254,12 @@ async def delete_node(
         dict: {"success": True, "deleted": 删除的节点数}
     """
     records = run_cypher(
-        "MATCH (n) WHERE elementId(n) = $id "
+        "MATCH (n) WHERE coalesce(n.graph_id, 'builtin-malware') = $graph_id "
+        "AND elementId(n) = $id "
         "DETACH DELETE n "
         "RETURN count(n) AS deleted",
         id=node_id,
+        graph_id=graph_id,
     )
     invalidate_entity_cache()
     return {"success": True, "deleted": records[0]["deleted"] if records else 0}

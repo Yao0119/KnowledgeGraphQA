@@ -19,6 +19,7 @@ from .neo4j_utils import (
     node_payload,
     close_driver
 )
+from .clamav import ClamAVServiceError, scan_bytes
 
 from .local_llm import (
     LocalLLMClient,
@@ -56,6 +57,8 @@ from .health_check import (
 __all__ = [
     # Neo4j 工具
     "get_neo4j_driver",
+    "ClamAVServiceError",
+    "scan_bytes",
     "get_graph_summary",
     "get_sample_triples",
     "get_full_graph",

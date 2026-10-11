@@ -19,14 +19,17 @@ import {
 } from "@ant-design/icons";
 import Sidebar from "../components/Sidebar";
 import LLMSettingsModal from "../components/LLMSettingsModal";
+import UserSettingsModal from "../components/UserSettingsModal";
+import { applyPreferences, getPreferences } from "../preferences";
 
 export default function Dashboard() {
     const navigate = useNavigate();
     const [userInfo, setUserInfo] = useState(null);
     const [isAdmin, setIsAdmin] = useState(false);
     const [collapsed, setCollapsed] = useState(false);
-    // 系统设置弹窗（配置大模型 API Key）
+    // 用户设置与管理员大模型设置分开，避免普通用户点开系统设置后只看到无权限提示。
     const [settingsOpen, setSettingsOpen] = useState(false);
+    const [llmSettingsOpen, setLlmSettingsOpen] = useState(false);
 
     useEffect(() => {
         // 从 localStorage 读取用户信息
@@ -42,6 +45,7 @@ export default function Dashboard() {
             const userData = JSON.parse(user);
             setUserInfo(userData);
             setIsAdmin(userData.role === "admin");
+            applyPreferences(getPreferences(userData.id));
         } catch (err) {
             console.error("用户信息解析失败:", err);
             localStorage.removeItem("token");
@@ -157,8 +161,15 @@ export default function Dashboard() {
                 onSaved 是可选的（组件内部用 onSaved?.()），
                 原来传它是为了刷新顶部状态条，状态条已按用户要求删除。 */}
             <LLMSettingsModal
+                open={llmSettingsOpen}
+                onClose={() => setLlmSettingsOpen(false)}
+            />
+            <UserSettingsModal
                 open={settingsOpen}
                 onClose={() => setSettingsOpen(false)}
+                userId={userInfo?.id}
+                isAdmin={isAdmin}
+                onOpenLLM={() => setLlmSettingsOpen(true)}
             />
         </div>
     );

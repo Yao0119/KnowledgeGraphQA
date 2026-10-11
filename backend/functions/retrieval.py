@@ -40,6 +40,8 @@ from ..core.config import (
 )
 from ..utils.neo4j_utils import get_neo4j_driver
 
+DEFAULT_GRAPH_ID = "builtin-malware"
+
 # ========================================
 # 词法资源
 # ========================================
@@ -272,13 +274,13 @@ def extract_terms(question: str, max_terms: int = KG_MAX_TERMS) -> List[str]:
 # 图谱实体名缓存（阶段 A）
 # ========================================
 
-_entity_cache: Dict[str, Any] = {"names": [], "expires_at": 0.0}
+_entity_cache: Dict[str, Dict[str, Any]] = {}
 _entity_lock = threading.Lock()
 _ENTITY_TTL_SECONDS = 300
 _ENTITY_MAX_NAMES = 20000
 
 
-def get_node_names(force_refresh: bool = False) -> List[str]:
+def get_node_names(force_refresh: bool = False, graph_id: str = DEFAULT_GRAPH_ID) -> List[str]:
     """
     获取图谱中的节点名列表（进程内缓存，默认 5 分钟）
 
@@ -293,8 +295,9 @@ def get_node_names(force_refresh: bool = False) -> List[str]:
     """
     now = time.time()
     with _entity_lock:
-        if not force_refresh and _entity_cache["names"] and now < _entity_cache["expires_at"]:
-            return list(_entity_cache["names"])
+        cached = _entity_cache.get(graph_id, {"names": [], "expires_at": 0.0})
+        if not force_refresh and cached["names"] and now < cached["expires_at"]:
+            return list(cached["names"])
 
     try:
         driver = get_neo4j_driver()
@@ -313,11 +316,13 @@ def get_node_names(force_refresh: bool = False) -> List[str]:
             # 如果还想进一步扩大覆盖，可以调大环境变量 KG_ENTITY_MAX_NAMES 对应的
             #   _ENTITY_MAX_NAMES（默认 20000）：名字都很短，放宽到 10 万量级内存代价很小。
             records = session.run(
-                "MATCH (n) WHERE n.name IS NOT NULL "
+                "MATCH (n) WHERE coalesce(n.graph_id, 'builtin-malware') = $graph_id "
+                "AND n.name IS NOT NULL "
                 "AND NOT (n:Solution OR n:Behavior OR n:Description "
                 "OR n:DateValue OR n:CountValue) "
                 "RETURN DISTINCT toString(n.name) AS name LIMIT $limit",
                 limit=_ENTITY_MAX_NAMES,
+                graph_id=graph_id,
             )
             names = [rec["name"] for rec in records if rec["name"]]
     except Exception as exc:
@@ -325,24 +330,26 @@ def get_node_names(force_refresh: bool = False) -> List[str]:
         return []
 
     with _entity_lock:
-        _entity_cache["names"] = names
-        _entity_cache["expires_at"] = now + _ENTITY_TTL_SECONDS
+        _entity_cache[graph_id] = {"names": names, "expires_at": now + _ENTITY_TTL_SECONDS}
     return list(names)
 
 
-def invalidate_entity_cache() -> None:
+def invalidate_entity_cache(graph_id: Optional[str] = None) -> None:
     """
     使实体名缓存失效（图谱写操作后应调用）
     """
     with _entity_lock:
-        _entity_cache["names"] = []
-        _entity_cache["expires_at"] = 0.0
+        if graph_id:
+            _entity_cache.pop(graph_id, None)
+        else:
+            _entity_cache.clear()
 
 
 def match_entity_names(
     question: str,
     names: Optional[List[str]] = None,
     max_hits: int = 20,
+    graph_id: str = DEFAULT_GRAPH_ID,
 ) -> List[str]:
     """
     找出字面出现在问题中的图谱实体名
@@ -362,7 +369,7 @@ def match_entity_names(
     if not question:
         return []
 
-    pool = names if names is not None else get_node_names()
+    pool = names if names is not None else get_node_names(graph_id=graph_id)
     if not pool:
         return []
 
@@ -434,6 +441,7 @@ def fetch_triples_by_entities(
     entities: List[str],
     limit: int = KG_MAX_TRIPLES,
     expand: bool = KG_EXPAND_NEIGHBORS,
+    graph_id: str = DEFAULT_GRAPH_ID,
 ) -> List[Dict[str, Any]]:
     """
     阶段 A：按实体名精确取关联三元组
@@ -451,12 +459,14 @@ def fetch_triples_by_entities(
 
     query = f"""
     MATCH {_incident_pattern(expand)}
-    WHERE toString(n.name) IN $names
+    WHERE coalesce(n.graph_id, 'builtin-malware') = $graph_id
+      AND coalesce(m.graph_id, 'builtin-malware') = $graph_id
+      AND toString(n.name) IN $names
     WITH DISTINCT r
     RETURN {_TRIPLE_PROJECTION}
     LIMIT $limit
     """
-    records = _run(query, names=entities, limit=limit)
+    records = _run(query, names=entities, limit=limit, graph_id=graph_id)
     return [_to_triple(rec) for rec in records]
 
 
@@ -464,6 +474,7 @@ def fetch_triples_by_terms(
     terms: List[str],
     limit: int = KG_MAX_TRIPLES,
     expand: bool = KG_EXPAND_NEIGHBORS,
+    graph_id: str = DEFAULT_GRAPH_ID,
 ) -> List[Dict[str, Any]]:
     """
     阶段 B：按关键词做子串召回，并按命中关键词数量排序
@@ -484,7 +495,9 @@ def fetch_triples_by_terms(
     # 两个方向的记录，若用 n/m 打分会在 DISTINCT 后留下重复的三元组。
     query = f"""
     MATCH {_incident_pattern(expand)}
-    WHERE any(t IN $terms WHERE
+    WHERE coalesce(n.graph_id, 'builtin-malware') = $graph_id
+      AND coalesce(m.graph_id, 'builtin-malware') = $graph_id
+      AND any(t IN $terms WHERE
               toLower(toString(coalesce(n.name, ''))) CONTAINS toLower(t)
            OR toLower(toString(coalesce(m.name, ''))) CONTAINS toLower(t))
     WITH DISTINCT r
@@ -495,7 +508,7 @@ def fetch_triples_by_terms(
     ORDER BY score DESC
     LIMIT $limit
     """
-    records = _run(query, terms=terms, limit=limit)
+    records = _run(query, terms=terms, limit=limit, graph_id=graph_id)
     triples = []
     for rec in records:
         triple = _to_triple(rec)
@@ -550,6 +563,7 @@ def retrieve_for_question(
     limit: int = KG_MAX_TRIPLES,
     max_terms: int = KG_MAX_TERMS,
     expand: bool = KG_EXPAND_NEIGHBORS,
+    graph_id: str = DEFAULT_GRAPH_ID,
 ) -> Dict[str, Any]:
     """
     为问题检索知识图谱证据（两阶段）
@@ -583,9 +597,9 @@ def retrieve_for_question(
         return result
 
     # ---- 阶段 A：实体字面命中 ----
-    entities = match_entity_names(question)
+    entities = match_entity_names(question, graph_id=graph_id)
     if entities:
-        triples = fetch_triples_by_entities(entities, limit=limit, expand=expand)
+        triples = fetch_triples_by_entities(entities, limit=limit, expand=expand, graph_id=graph_id)
         if triples:
             result["strategy"] = "entity-match"
             result["entities"] = entities
@@ -597,7 +611,7 @@ def retrieve_for_question(
     # ---- 阶段 B：关键词兜底 ----
     terms = extract_terms(question, max_terms=max_terms)
     if terms:
-        triples = fetch_triples_by_terms(terms, limit=limit, expand=expand)
+        triples = fetch_triples_by_terms(terms, limit=limit, expand=expand, graph_id=graph_id)
         result["terms"] = terms
         if triples:
             result["strategy"] = "term-match"

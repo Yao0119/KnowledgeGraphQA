@@ -10,12 +10,22 @@ from .config import (
     DATABASE_URL,
     OLLAMA_BASE_URL,
     OLLAMA_MODEL,
+    CLAMAV_REST_URL,
+    CLAMAV_TIMEOUT,
+    VIRUS_MAX_FILE_SIZE,
 )
 
 from .models import (
     User,
     UserRole,
     CustomerProfile,
+    KnowledgeGraph,
+    KnowledgeGraphMember,
+    GraphStatus,
+    GraphSourceType,
+    GraphPermission,
+    GraphBuildJob,
+    GraphBuildStatus,
     init_db,
     get_db,
 )
@@ -31,6 +41,7 @@ from .database import (
     create_customer_profile,
     update_customer_profile,
     get_all_customers,
+    ensure_builtin_graph,
 )
 
 __all__ = [
@@ -41,10 +52,20 @@ __all__ = [
     "DATABASE_URL",
     "OLLAMA_BASE_URL",
     "OLLAMA_MODEL",
+    "CLAMAV_REST_URL",
+    "CLAMAV_TIMEOUT",
+    "VIRUS_MAX_FILE_SIZE",
     # Models
     "User",
     "UserRole",
     "CustomerProfile",
+    "KnowledgeGraph",
+    "KnowledgeGraphMember",
+    "GraphStatus",
+    "GraphSourceType",
+    "GraphPermission",
+    "GraphBuildJob",
+    "GraphBuildStatus",
     "init_db",
     "get_db",
     # Database
@@ -58,4 +79,5 @@ __all__ = [
     "create_customer_profile",
     "update_customer_profile",
     "get_all_customers",
+    "ensure_builtin_graph",
 ]

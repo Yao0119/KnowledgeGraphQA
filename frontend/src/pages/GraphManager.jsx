@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   Card,
   Table,
@@ -28,6 +29,7 @@ import {
   ZoomOutOutlined,
   ApartmentOutlined,
   TableOutlined,
+  ArrowLeftOutlined,
 } from "@ant-design/icons";
 
 import { Network } from "vis-network";
@@ -57,6 +59,10 @@ const getColorByLabel = (label) => getNodeColor(label);
 // 后端地址已统一到 src/api.js（相对路径 /api + Vite 代理），此处不再硬编码 host。
 
 export default function GraphManager() {
+  const navigate = useNavigate();
+  const { graphId: routeGraphId } = useParams();
+  const selectedGraphId = routeGraphId || localStorage.getItem("active_graph_id") || "builtin-malware";
+  const [graphMeta, setGraphMeta] = useState(null);
   const [stats, setStats] = useState({ nodes: 0, relationships: 0 });
   const [sample, setSample] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -105,10 +111,11 @@ export default function GraphManager() {
     setLoading(true);
     try {
       const [statsRes, sampleRes, graphRes] = await Promise.all([
-        api.get("/api/graph/summary"),
-        api.get("/api/graph/samples"),
+        api.get("/api/graph/summary", { params: { graph_id: selectedGraphId } }),
+        api.get("/api/graph/samples", { params: { graph_id: selectedGraphId } }),
         api.get("/api/graph/full", {
           params: {
+            graph_id: selectedGraphId,
             seeds: useSeeds,
             offset: useOffset,
             hide_text: useHideText,
@@ -174,7 +181,24 @@ export default function GraphManager() {
 
   useEffect(() => {
     loadData();
-  }, []);
+    localStorage.setItem("active_graph_id", selectedGraphId);
+    // selectedGraphId 变化时重新加载当前图谱
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedGraphId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.get(`/api/graphs/${encodeURIComponent(selectedGraphId)}`)
+      .then((res) => {
+        if (!cancelled) setGraphMeta(res.data?.data ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setGraphMeta(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedGraphId]);
   // -------------------------
   // 全屏逻辑
   // -------------------------
@@ -498,13 +522,13 @@ export default function GraphManager() {
       if (editingNode) {
         await api.put(`/api/kg/node/${editingNode.id}`, {
           name: values.name,
-        });
+        }, { params: { graph_id: selectedGraphId } });
         message.success("✅ 节点更新成功");
       } else {
         await api.post("/api/kg/node", {
           name: values.name,
           label: values.label,
-        });
+        }, { params: { graph_id: selectedGraphId } });
         message.success("✨ 新建节点成功");
       }
 
@@ -531,7 +555,7 @@ export default function GraphManager() {
       okType: "danger",
       onOk: async () => {
         try {
-          await api.delete(`/api/kg/node/${editingNode.id}`);
+          await api.delete(`/api/kg/node/${editingNode.id}`, { params: { graph_id: selectedGraphId } });
           message.success("🗑️ 节点已删除");
           setIsModalVisible(false);
           loadData();
@@ -593,6 +617,21 @@ export default function GraphManager() {
   return (
     <Spin spinning={loading} tip="加载中...">
       <div className="space-y-5">
+
+        <div className="graph-detail-toolbar">
+          <Button
+            type="text"
+            icon={<ArrowLeftOutlined />}
+            onClick={() => navigate("/dashboard/graph")}
+          >
+            返回图谱管理
+          </Button>
+          <div className="graph-detail-heading">
+            <h1>{graphMeta?.name || "图谱详情"}</h1>
+            <p>{graphMeta?.description || `当前图谱：${selectedGraphId}`}</p>
+          </div>
+          <Tag>{graphMeta?.status === "ready" ? "已就绪" : graphMeta?.status || "当前图谱"}</Tag>
+        </div>
 
         {/* 统计卡片 */}
 

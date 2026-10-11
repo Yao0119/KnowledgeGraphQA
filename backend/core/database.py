@@ -5,7 +5,7 @@
 
 from sqlalchemy.orm import Session
 import bcrypt
-from .models import User, CustomerProfile, UserRole
+from .models import User, CustomerProfile, UserRole, KnowledgeGraph, GraphSourceType, GraphStatus
 from datetime import datetime
 
 # ========================================
@@ -249,3 +249,25 @@ def get_all_customers(db: Session, skip: int = 0, limit: int = 100):
         list: 客户用户对象列表
     """
     return db.query(User).filter(User.role == UserRole.CUSTOMER).offset(skip).limit(limit).all()
+
+
+def ensure_builtin_graph(db: Session) -> KnowledgeGraph:
+    """确保系统内置图谱在目录中存在。"""
+    graph = db.query(KnowledgeGraph).filter(KnowledgeGraph.slug == "builtin-malware").first()
+    if graph:
+        return graph
+
+    graph = KnowledgeGraph(
+        slug="builtin-malware",
+        name="恶意软件知识图谱",
+        description="系统内置的中英双语恶意软件知识图谱。",
+        is_builtin=True,
+        is_public=True,
+        status=GraphStatus.READY,
+        source_type=GraphSourceType.BUILTIN,
+        language_mode="dual",
+    )
+    db.add(graph)
+    db.commit()
+    db.refresh(graph)
+    return graph

@@ -3,7 +3,7 @@
 处理所有AI功能相关的API端点（问答、推理、预测等）
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, File, HTTPException, Header, UploadFile
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional, List
@@ -14,6 +14,8 @@ from .reasoning import ReasoningModule
 from .prediction import predict_threat
 from ..utils.neo4j_utils import get_neo4j_driver
 from ..core.config import NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD
+from ..core.config import VIRUS_MAX_FILE_SIZE
+from ..utils.clamav import ClamAVServiceError, scan_bytes
 
 # ========================================
 # 路由初始化
@@ -31,6 +33,7 @@ class QuestionRequest(BaseModel):
     用户提交问题进行知识图谱检索
     """
     question: str
+    graph_id: str = "builtin-malware"
 
 
 class ReasoningRequest(BaseModel):
@@ -152,7 +155,7 @@ async def ask_question(
     
     try:
         # 调用QA模块获取答案
-        result = answer_question_with_graph(question)
+        result = answer_question_with_graph(question, graph_id=payload.graph_id)
         
         # 处理返回结果
         if isinstance(result, dict):
@@ -305,44 +308,33 @@ async def check_functions_health():
 # API 端点 - 病毒检测功能
 # ========================================
 
-@router.post("/api/virus-detection", response_model=VirusDetectionResponse)
-async def detect_virus(
-    payload: VirusDetectionRequest,
-    authorization: Optional[str] = Header(None)
+@router.post("/api/virus-detection/upload")
+async def scan_uploaded_file(
+    file: UploadFile = File(...),
+    _current_user: User = Depends(get_current_customer),
 ):
-    """
-    病毒检测接口
-    """
-    import random
-    import time
-    
-    # 模拟检测过程
-    time.sleep(1.5)
-    
-    # 简单的模拟逻辑
-    is_malicious = random.random() > 0.7
-    threat_level = "High" if is_malicious else "Low"
-    
-    if is_malicious:
-        scan_results = [
-            {"engine": "静态分析", "result": "检测到可疑的 API 调用", "status": "恶意"},
-            {"engine": "行为沙箱", "result": "未授权的文件加密尝试", "status": "恶意"},
-            {"engine": "特征码库", "result": "匹配 Trojan.Generic.123", "status": "恶意"}
-        ]
-        summary = f"警告：检测到病毒！文件 {payload.file_name} 具有高度威胁性。"
-    else:
-        scan_results = [
-            {"engine": "静态分析", "result": "结构正常", "status": "安全"},
-            {"engine": "行为沙箱", "result": "未发现可疑活动", "status": "安全"},
-            {"engine": "特征码库", "result": "未匹配到已知病毒", "status": "安全"}
-        ]
-        summary = f"文件 {payload.file_name} 扫描完成，未发现明显威胁。"
+    """把上传文件转发到内部 ClamAV REST 服务。"""
+    filename = (file.filename or "unknown_file").replace("\\", "/").split("/")[-1]
+    content = await file.read(VIRUS_MAX_FILE_SIZE + 1)
+    if not content:
+        raise HTTPException(status_code=400, detail="不能扫描空文件")
+    if len(content) > VIRUS_MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail=f"文件不能超过 {VIRUS_MAX_FILE_SIZE // (1024 * 1024)} MB",
+        )
 
-    return VirusDetectionResponse(
-        success=True,
-        message="检测完成",
-        is_malicious=is_malicious,
-        threat_level=threat_level,
-        scan_results=scan_results,
-        summary=summary
+    try:
+        result = scan_bytes(filename, content)
+    except ClamAVServiceError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {**result, "message": "ClamAV 检测完成"}
+
+
+@router.post("/api/virus-detection", response_model=VirusDetectionResponse)
+async def legacy_virus_detection(_: VirusDetectionRequest):
+    """兼容旧客户端，但不再返回随机模拟结论。"""
+    raise HTTPException(
+        status_code=410,
+        detail="旧版病毒检测接口已停用，请使用 multipart 上传接口 /api/virus-detection/upload",
     )

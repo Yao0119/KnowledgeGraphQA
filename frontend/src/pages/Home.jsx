@@ -20,14 +20,13 @@ import {
   ApartmentOutlined,
   BugOutlined,
   QuestionCircleOutlined,
-  DeploymentUnitOutlined,
   ArrowRightOutlined,
   SafetyCertificateOutlined,
 } from "@ant-design/icons";
 import { API_BASE } from "../api";
 
 /**
- * 五个功能模块。
+ * 四个功能模块。
  * desc 里写的是这个模块**实际能做什么**（含真实数据规模与交互方式），
  * 不用"赋能/一站式"这类空话——简介页最容易退化成营销文案。
  */
@@ -55,12 +54,6 @@ const FEATURES = [
     icon: QuestionCircleOutlined,
     title: "问答检索",
     desc: "用自然语言提问，答案由图谱检索与大模型组织生成，并保留可溯源的实体与关系，便于核对结论来自哪些数据。",
-  },
-  {
-    to: "/dashboard/reasoning",
-    icon: DeploymentUnitOutlined,
-    title: "系统推理",
-    desc: "基于图谱做多步推理，输出结论及其推理链路，用于复核判断依据，而不是只给一个结果。",
   },
 ];
 
@@ -100,8 +93,8 @@ export default function Home() {
 
         <p className="home-sub">
           把恶意软件的家族、运行环境、厂商别名、威胁行为、变种、解决方案等信息组织成图谱，
-          支持中英文双层对照检索与推理。左侧五个模块分别对应图谱管理、跨语言对照、
-          样本检测、问答检索与多步推理。
+          支持中英文双层对照检索。左侧四个模块分别对应图谱管理、跨语言对照、
+          样本检测与问答检索。
         </p>
 
         {summary && (

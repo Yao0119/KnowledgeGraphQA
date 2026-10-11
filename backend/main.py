@@ -30,7 +30,7 @@ from typing import Optional
 # ========================================
 # 导入核心模块
 # ========================================
-from backend.core import init_db, get_db, UserRole, create_user, get_user_by_username
+from backend.core import init_db, get_db, UserRole, create_user, get_user_by_username, ensure_builtin_graph
 
 # ========================================
 # 导入子模块路由
@@ -39,6 +39,7 @@ from backend.admin import admin_router
 from backend.customer import customer_router
 from backend.functions import functions_router
 from backend.kg_manager import router as kg_router
+from backend.graphs import router as graphs_router, jobs_router as graph_jobs_router
 from backend.core.config import CORS_ORIGINS
 
 # ========================================
@@ -132,6 +133,15 @@ async def startup_event():
     except Exception as e:
         print(f"❌ MySQL 初始化失败: {e}")
         # 不抛出异常，允许应用继续启动，但会在健康检查中显示错误
+
+    # Step 1.5: 注册系统内置图谱目录
+    try:
+        db = next(get_db())
+        ensure_builtin_graph(db)
+        db.close()
+        print("✅ 内置图谱目录已就绪: builtin-malware")
+    except Exception as e:
+        print(f"⚠️ 内置图谱目录初始化失败: {e}")
     
     # Step 2: 创建默认管理员账户
     try:
@@ -183,6 +193,8 @@ app.include_router(functions_router)
 
 # 注册知识图谱管理路由（/api/kg/stats、/api/kg/sample、/api/kg/node 增删改）
 app.include_router(kg_router)
+app.include_router(graphs_router)
+app.include_router(graph_jobs_router)
 
 
 # ========================================
@@ -228,7 +240,7 @@ async def health_check():
 # ========================================
 
 @app.get("/api/graph/summary")
-async def graph_summary():
+async def graph_summary(graph_id: str = "builtin-malware"):
     """
     获取知识图谱统计信息
     
@@ -236,7 +248,7 @@ async def graph_summary():
         dict: 包含节点数和关系数
     """
     try:
-        summary = get_graph_summary()
+        summary = get_graph_summary(graph_id)
         return {
             "success": True,
             "data": summary
@@ -246,7 +258,7 @@ async def graph_summary():
 
 
 @app.get("/api/graph/samples")
-async def graph_samples(limit: int = 20):
+async def graph_samples(limit: int = 20, graph_id: str = "builtin-malware"):
     """
     获取知识图谱样本数据
     
@@ -257,7 +269,7 @@ async def graph_samples(limit: int = 20):
         dict: 包含样本三元组的数据
     """
     try:
-        samples = get_sample_triples(limit)
+        samples = get_sample_triples(limit, graph_id)
         return {
             "success": True,
             "data": samples
@@ -272,6 +284,7 @@ async def graph_full(
     seeds: int = 25,
     offset: int = 0,
     hide_text: bool = False,
+    graph_id: str = "builtin-malware",
 ):
     """
     获取知识图谱可视化子图（节点 + 边）
@@ -292,7 +305,7 @@ async def graph_full(
     """
     try:
         graph_data = get_full_graph(
-            limit=limit, seeds=seeds, offset=offset, hide_text=hide_text
+            limit=limit, seeds=seeds, offset=offset, hide_text=hide_text, graph_id=graph_id
         )
         return {
             "success": True,
@@ -310,7 +323,7 @@ async def graph_full(
 # 且**只有核心节点（恶意软件本体）之间存在 ALIGN_WITH 映射**。
 
 @app.get("/api/graph/malware-list")
-async def graph_malware_list(limit: int = 300, keyword: str = ""):
+async def graph_malware_list(limit: int = 300, keyword: str = "", graph_id: str = "builtin-malware"):
     """
     列出可用于中英对照的恶意软件（核心节点已建立 ALIGN_WITH 映射的）
 
@@ -325,13 +338,13 @@ async def graph_malware_list(limit: int = 300, keyword: str = ""):
         dict: {"success": True, "data": [{name, mal_type, degree}]}
     """
     try:
-        return {"success": True, "data": list_dual_malware(limit=limit, keyword=keyword)}
+        return {"success": True, "data": list_dual_malware(limit=limit, keyword=keyword, graph_id=graph_id)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取对照病毒列表失败: {str(e)}")
 
 
 @app.get("/api/graph/layers")
-async def graph_layers(virus: Optional[str] = None, limit: int = 120):
+async def graph_layers(virus: Optional[str] = None, limit: int = 120, graph_id: str = "builtin-malware"):
     """
     获取中英双层对照子图（前端左右两个面板的数据来源）
 
@@ -345,7 +358,7 @@ async def graph_layers(virus: Optional[str] = None, limit: int = 120):
     try:
         name = (virus or "").strip()
         if not name:
-            candidates = list_dual_malware(limit=1)
+            candidates = list_dual_malware(limit=1, graph_id=graph_id)
             if not candidates:
                 return {
                     "success": True,
@@ -354,13 +367,13 @@ async def graph_layers(virus: Optional[str] = None, limit: int = 120):
                 }
             name = candidates[0]["name"]
 
-        return {"success": True, "data": get_dual_layer_graph(name, limit=limit)}
+        return {"success": True, "data": get_dual_layer_graph(name, limit=limit, graph_id=graph_id)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取双层图谱失败: {str(e)}")
 
 
 @app.get("/api/graph/node-detail")
-async def graph_node_detail(norm_name: str):
+async def graph_node_detail(norm_name: str, graph_id: str = "builtin-malware"):
     """
     查询"同一个实体的中英两版"节点属性，供前端并排对比
 
@@ -374,7 +387,7 @@ async def graph_node_detail(norm_name: str):
         dict: {"success": True, "data": {"cn": {...}|None, "en": {...}|None}}
     """
     try:
-        return {"success": True, "data": get_node_detail(norm_name)}
+        return {"success": True, "data": get_node_detail(norm_name, graph_id)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取节点详情失败: {str(e)}")
 

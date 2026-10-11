@@ -150,6 +150,15 @@ DEEPSEEK_TIMEOUT = int(_env("DEEPSEEK_TIMEOUT", "120"))
 OLLAMA_BASE_URL = _env("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL = _env("OLLAMA_MODEL", "qwen:1.8b")  # 可用模型: qwen:1.8b, qwen:7b, chatglm:6b, llama2:7b
 
+# ========================================
+# 病毒检测服务
+# ========================================
+# 默认指向 Docker Compose 中的 clamav-rest 服务；本地没有启动时，接口会明确返回 503，
+# 不再退回随机模拟结果，避免把演示结论误当成真实扫描。
+CLAMAV_REST_URL = _env("CLAMAV_REST_URL", "http://127.0.0.1:9000/v2/scan")
+CLAMAV_TIMEOUT = int(_env("CLAMAV_TIMEOUT", "60"))
+VIRUS_MAX_FILE_SIZE = int(_env("VIRUS_MAX_FILE_SIZE", str(100 * 1024 * 1024)))
+
 # 通用 LLM 生成参数
 LLM_TEMPERATURE = float(_env("LLM_TEMPERATURE", "0.3"))
 LLM_MAX_TOKENS = int(_env("LLM_MAX_TOKENS", "1024"))

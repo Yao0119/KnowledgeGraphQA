@@ -1,4 +1,5 @@
 fastapi
+python-multipart
 uvicorn[standard]
 python-jose[cryptography]
 # 直接用 bcrypt 做密码哈希；不再使用 passlib（它与 bcrypt>=5 不兼容，见 core/database.py 注释）

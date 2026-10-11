@@ -5,10 +5,11 @@
 
 from fastapi import APIRouter, HTTPException, Depends, Header
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 from jose import jwt
 from ..core import get_db, User, CustomerProfile, get_user_by_id, update_customer_profile
+from ..core.database import hash_password, verify_password
 from ..core.config import SECRET_KEY, ALGORITHM
 
 # ========================================
@@ -65,6 +66,11 @@ class CustomerInfoResponse(BaseModel):
     company: Optional[str] = None
     department: Optional[str] = None
     created_at: Optional[str] = None
+
+
+class CustomerPasswordChangeRequest(BaseModel):
+    current_password: str = Field(..., min_length=1, max_length=128)
+    new_password: str = Field(..., min_length=6, max_length=128)
 
 
 # ========================================
@@ -219,3 +225,20 @@ async def get_customer_info(
         "department": profile.department if profile else None,
         "created_at": current_user.created_at.isoformat() if current_user.created_at else None,
     }
+
+
+@router.post("/change-password")
+async def change_customer_password(
+    data: CustomerPasswordChangeRequest,
+    current_user: User = Depends(get_current_customer),
+    db: Session = Depends(get_db),
+):
+    """修改当前登录用户密码；不依赖管理员静态令牌。"""
+    if not verify_password(data.current_password, current_user.hashed_password):
+        raise HTTPException(status_code=400, detail="当前密码不正确")
+    if data.current_password == data.new_password:
+        raise HTTPException(status_code=400, detail="新密码不能与当前密码相同")
+
+    current_user.hashed_password = hash_password(data.new_password)
+    db.commit()
+    return {"message": "密码已修改，请重新登录"}

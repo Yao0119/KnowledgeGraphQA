@@ -1,0 +1,9 @@
+services:
+  clamav-rest:
+    # Docker Hub 当前稳定可用标签；生产环境可通过 CLAMAV_IMAGE 固定到已验证的 digest/tag。
+    image: ${CLAMAV_IMAGE:-ajilaag/clamav-rest:latest}
+    container_name: kg-clamav-rest
+    restart: unless-stopped
+    ports:
+      # 只绑定本机，浏览器和公网不能直接访问扫描服务。
+      - "127.0.0.1:${CLAMAV_PORT:-9000}:9000"

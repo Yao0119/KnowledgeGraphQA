@@ -4,9 +4,9 @@ import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import Home from "./pages/Home";
 import GraphManager from "./pages/GraphManager";
+import GraphCatalog from "./pages/GraphCatalog";
 import GraphDual from "./pages/GraphDual";
 import QA from "./pages/QA";
-import Reasoning from "./pages/Reasoning";
 import Predict from "./pages/Predict";
 import VirusDetection from "./pages/VirusDetection"; // 新增病毒检测页面
 import CustomerProfile from "./pages/CustomerProfile";
@@ -28,7 +28,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* 首页重定向：如果没有登录，跳转到登录页；如果已登录，跳转到 dashboard */}
+        {/* 默认进入当前图谱工作区 */}
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         
         {/* 认证页面 */}
@@ -44,18 +44,17 @@ export default function App() {
             </ProtectedRoute>
           }
         >
-          {/* 首页就是"系统概览"。
-              原来这里是 <Navigate to="graph" replace />，导致侧边栏的
-              「系统概览」和「知识图谱管理」进的是同一个页面（用户反馈的"重复了"）。 */}
-          <Route index element={<Home />} />
-          <Route path="graph" element={<GraphManager />} />
+          {/* 登录后默认进入图谱管理；系统概览仍保留在侧边栏 */}
+          <Route index element={<Navigate to="graph" replace />} />
+          <Route path="overview" element={<Home />} />
+          <Route path="graph" element={<GraphCatalog />} />
+          <Route path="graph/:graphId" element={<GraphManager />} />
           {/* 中英双层对照图谱：左右两个面板分别渲染 cn / en 层，核心节点跨层映射 */}
           <Route path="graph-dual" element={<GraphDual />} />
           <Route path="qa" element={<QA />} />
           {/* 原 Profile.jsx 已废弃：它请求的 /api/user/profile/* 后端不存在。
               统一到 /customer-profile（管理员同样可用）。 */}
           <Route path="profile" element={<Navigate to="/customer-profile" replace />} />
-          <Route path="reasoning" element={<Reasoning />} />
           <Route path="predict" element={<Predict />} />
           <Route path="virus" element={<VirusDetection />} /> {/* 新增路由 */}
           <Route path="customers" element={<AdminCustomerManagement />} />
