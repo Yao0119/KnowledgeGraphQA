@@ -1,0 +1,88 @@
+page {
+  background: #f4f7fa;
+  color: #102235;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 28rpx;
+}
+view, scroll-view, swiper, button, input, textarea, text { box-sizing: border-box; }
+button::after { border: 0; }
+.page { min-height: 100vh; padding-bottom: 150rpx; }
+/*
+ * 自定义导航栏下，微信开发者工具部分机型不会正确返回
+ * env(safe-area-inset-top)，导致页面标题绘制到系统状态栏下面。
+ * 88rpx 对应常见 iPhone 机型约 44px 的状态栏高度。
+ */
+.safe-top { padding-top: 88rpx !important; }
+.dark-header { position: relative; overflow: hidden; padding: 12rpx 32rpx 18rpx; background: #0e1b2a; color: #f5f7fa; }
+.dark-header::after { position: absolute; right: -80rpx; top: -130rpx; width: 360rpx; height: 360rpx; border: 1rpx solid rgba(17,214,197,.18); border-radius: 50%; box-shadow: 0 0 0 34rpx rgba(17,214,197,.035), 0 0 0 68rpx rgba(17,214,197,.025); content: ""; }
+.eyebrow { color: #7d94a8; font-size: 19rpx; letter-spacing: 1.5rpx; }
+.section { padding: 38rpx 32rpx 0; }
+.section-title { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 22rpx; }
+.section-title text:first-child { color: #102235; font-size: 34rpx; font-weight: 700; }
+.section-title text:last-child { color: #7f8e9b; font-size: 23rpx; }
+.card { border: 1rpx solid #e2e9ee; border-radius: 24rpx; background: #fff; box-shadow: 0 12rpx 34rpx rgba(16,34,53,.05); }
+.muted { color: #7f8e9b; }
+.teal { color: #0da99d; }
+.mini-dot { display: inline-block; width: 12rpx; height: 12rpx; margin-right: 10rpx; border-radius: 50%; background: #11d6c5; box-shadow: 0 0 0 6rpx rgba(17,214,197,.12); }
+
+.workspace-heading { display: block; margin-bottom: 22rpx; }
+.workspace-heading > view { width: 100%; }
+.workspace-kicker { display: block; color: #7f8e9b; font-size: 20rpx; letter-spacing: 1rpx; }
+.workspace-title { display: block; margin-top: 7rpx; color: #102235; font-size: 34rpx; font-weight: 700; }
+.workspace-desc { display: block; margin-top: 7rpx; color: #81909d; font-size: 21rpx; line-height: 1.45; }
+.create-graph-btn { display: block; width: 100%; height: 68rpx; margin-top: 16rpx; padding: 0 18rpx; border-radius: 16rpx; color: #0e1b2a; background: #11d6c5; font-size: 22rpx; line-height: 68rpx; }
+.graph-directory-scroll { margin: 0 -32rpx 24rpx; padding-left: 32rpx; width: calc(100% + 64rpx); white-space: nowrap; }
+.graph-directory-row { display: inline-flex; gap: 14rpx; padding-right: 32rpx; }
+.graph-directory-card { display: inline-flex; flex-direction: column; align-items: stretch; vertical-align: top; width: calc(100vw - 64rpx); min-height: 220rpx; padding: 20rpx; border-radius: 22rpx; white-space: normal; }
+.graph-directory-built-in { border-color: #bfeee9; background: #f5fffd; }
+.graph-card-top { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+.graph-card-icon { display: flex; align-items: center; justify-content: center; width: 48rpx; height: 48rpx; border-radius: 14rpx; color: #0da99d; background: #dff9f5; font-size: 30rpx; }
+.graph-card-status { padding: 6rpx 12rpx; border-radius: 20rpx; color: #0b8f85; background: #e5faf7; font-size: 19rpx; }
+.graph-card-name { display: block; margin-top: 16rpx; color: #102235; font-size: 28rpx; font-weight: 700; }
+.graph-card-desc { display: block; overflow: hidden; margin-top: 7rpx; color: #81909d; font-size: 21rpx; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
+.graph-card-meta { display: block; margin-top: 12rpx; color: #6f8290; font-size: 20rpx; }
+.graph-progress { height: 8rpx; margin-top: 14rpx; overflow: hidden; border-radius: 8rpx; background: #e3eeee; }
+.graph-progress-bar { height: 100%; border-radius: 8rpx; background: #11d6c5; }
+.graph-card-action { display: block; margin-top: 14rpx; color: #0da99d; font-size: 21rpx; }
+.graph-modal-mask { position: fixed; z-index: 60; inset: 0; background: rgba(10,25,39,.5); }
+.graph-modal-sheet { position: absolute; right: 0; bottom: 0; left: 0; padding: 30rpx 32rpx calc(34rpx + env(safe-area-inset-bottom)); border-radius: 30rpx 30rpx 0 0; background: #fff; }
+.graph-modal-head { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 22rpx; }.graph-modal-kicker { display: block; color: #7f8e9b; font-size: 19rpx; letter-spacing: 2rpx; }.graph-modal-title { display: block; margin-top: 7rpx; color: #102235; font-size: 34rpx; font-weight: 700; }.graph-modal-close { color: #8d9aa3; font-size: 44rpx; line-height: 38rpx; }
+.modal-label { display: block; margin-top: 16rpx; color: #334858; font-size: 23rpx; font-weight: 700; }.modal-input, .modal-textarea { width: 100%; margin-top: 9rpx; padding: 16rpx 18rpx; border: 1rpx solid #dce5ea; border-radius: 15rpx; color: #2d4354; background: #fbfcfd; font-size: 24rpx; }.modal-textarea { min-height: 90rpx; line-height: 1.5; }.modal-placeholder { color: #a1adb5; }.language-options { display: flex; gap: 12rpx; margin-top: 10rpx; }.language-option { flex: 1; padding: 14rpx 8rpx; border: 1rpx solid #dce5ea; border-radius: 14rpx; color: #71818d; text-align: center; font-size: 22rpx; }.language-option-active { border-color: #11d6c5; color: #0b8f85; background: #e5faf7; }.source-picker { display: flex; align-items: center; margin-top: 18rpx; padding: 17rpx; border: 1rpx dashed #b9d9d5; border-radius: 16rpx; background: #f6fffd; }.source-picker-icon { display: flex; align-items: center; justify-content: center; width: 50rpx; height: 50rpx; margin-right: 13rpx; border-radius: 14rpx; color: #0da99d; background: #dff9f5; font-size: 28rpx; }.source-picker-title { display: block; overflow: hidden; max-width: 510rpx; color: #355463; font-size: 23rpx; text-overflow: ellipsis; white-space: nowrap; }.source-picker-desc { display: block; margin-top: 4rpx; color: #8b9aa3; font-size: 19rpx; }.modal-submit { margin-top: 22rpx; border-radius: 16rpx; color: #0e1b2a; background: #11d6c5; font-size: 26rpx; line-height: 80rpx; }
+
+/* 与网页版保持一致：浅灰底、白卡片、近黑主操作色。 */
+page { background: #f2f2f2 !important; color: #1c1c1e !important; }
+.dark-header, .graph-header, .dual-header, .virus-header, .qa-header, .predict-header, .profile-header, .customers-header { background: rgba(255,255,255,.88) !important; color: #1c1c1e !important; border-bottom: 1rpx solid rgba(0,0,0,.06); -webkit-backdrop-filter: saturate(180%) blur(24px); backdrop-filter: saturate(180%) blur(24px); }
+.dark-header::after { display: none; }
+.home-title, .graph-title, .dual-title, .virus-title, .qa-title, .predict-title, .profile-title, .customers-title, .workspace-title, .graph-card-name, .graph-modal-title { color: #1c1c1e !important; }
+.home-title-accent, .status-arrow, .graph-count, .dual-note, .virus-mode, .teal { color: #1c1c1e !important; }
+.home-intro, .predict-desc, .customers-desc { color: #48484a !important; }
+.system-status { border-color: rgba(0,0,0,.06) !important; color: #48484a !important; background: rgba(242,242,242,.8) !important; }
+.avatar { border-color: rgba(0,0,0,.12) !important; color: #1c1c1e !important; background: #e5e5ea !important; }
+.card { border-color: rgba(0,0,0,.06) !important; background: #fff !important; box-shadow: 0 1rpx 2rpx rgba(0,0,0,.04), 0 12rpx 34rpx rgba(0,0,0,.05) !important; }
+.create-graph-btn, .primary-btn, .modal-submit, .form-card .primary-btn { color: #fff !important; background: #1c1c1e !important; }
+.feature-icon-graph, .feature-icon-qa, .feature-icon-detect, .feature-icon-dual, .feature-icon-virus, .feature-icon-predict { color: #1c1c1e !important; background: #e5e5ea !important; }
+.graph-map { background: #fbfbfb !important; }
+.map-grid { opacity: .5 !important; background-image: linear-gradient(rgba(0,0,0,.06) 1rpx, transparent 1rpx), linear-gradient(90deg, rgba(0,0,0,.06) 1rpx, transparent 1rpx) !important; }
+.orbit { border-color: rgba(0,0,0,.12) !important; }.orbit-b { border-color: rgba(0,0,0,.08) !important; }.core-node { color: #fff !important; background: #1c1c1e !important; box-shadow: 0 0 0 18rpx rgba(0,0,0,.07), 0 0 44rpx rgba(0,0,0,.12) !important; }.map-line { background: rgba(0,0,0,.2) !important; }.map-caption { color: #6e6e73 !important; }
+.filter { border-color: rgba(0,0,0,.08) !important; color: #48484a !important; background: #fff !important; }.filter-active { border-color: #1c1c1e !important; color: #1c1c1e !important; background: #e5e5ea !important; }
+.graph-card-status, .language-option-active { border-color: rgba(0,0,0,.1) !important; color: #1c1c1e !important; background: #e5e5ea !important; }.graph-directory-built-in { border-color: rgba(0,0,0,.06) !important; background: #fff !important; }.graph-card-icon, .source-picker-icon { color: #1c1c1e !important; background: #e5e5ea !important; }.graph-card-action { color: #1c1c1e !important; }.graph-progress-bar { background: #1c1c1e !important; }.source-picker { border-color: rgba(0,0,0,.12) !important; background: #f2f2f2 !important; }
+.source-picker-title, .node-name, .feature-title, .recent-question { color: #1c1c1e !important; }.feature-desc, .recent-answer, .node-detail, .workspace-desc { color: #48484a !important; }.tool-btn { color: #1c1c1e !important; }
+.graph-modal-mask, .detail-mask { background: rgba(0,0,0,.28) !important; }.graph-modal-sheet, .detail-sheet { background: #fff !important; }.modal-input, .modal-textarea, .form-card input, .form-card textarea { border-color: rgba(0,0,0,.12) !important; color: #1c1c1e !important; background: #f2f2f2 !important; }
+
+/* 问答页的输入区整体停在自定义底部导航上方，避免建议问题和输入框被导航覆盖。 */
+.qa-page { padding-bottom: 0 !important; }
+.qa-page .conversation { padding-bottom: 300rpx !important; }
+.qa-page .qa-bottom-dock {
+  position: fixed;
+  z-index: 35;
+  right: 0;
+  bottom: 112rpx;
+  bottom: calc(112rpx + env(safe-area-inset-bottom));
+  left: 0;
+  padding: 8rpx 0 14rpx;
+  background: rgba(242,242,242,.97);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+.qa-page .suggestions { padding: 0 32rpx 12rpx; }
+.qa-page .composer { margin: 0 24rpx; }

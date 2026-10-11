@@ -1,0 +1,28 @@
+<view class="page graph-page">
+  <view class="graph-header safe-top">
+    <view class="graph-header-row"><view><text class="eyebrow">GRAPH EXPLORER / 02</text><text class="graph-title">知识图谱</text></view><text class="graph-count">{{filteredNodes.length}} / {{nodes.length}} 节点</text></view>
+    <view class="search-box"><text class="search-icon">⌕</text><input value="{{keyword}}" bindinput="onSearchInput" placeholder="搜索实体、家族或行为" placeholder-class="search-placeholder" /></view>
+  </view>
+  <view class="section graph-content">
+    <view class="workspace-heading"><view><text class="workspace-kicker">知识图谱工作区</text><text class="workspace-title">先选图谱，再开始分析</text><text class="workspace-desc">每个图谱拥有独立的数据范围，可用于可视化、双层对照和问答检索。</text></view><button class="create-graph-btn" bindtap="openCreateGraph">＋ 创建图谱</button></view>
+    <scroll-view scroll-x class="graph-directory-scroll" enhanced="true" show-scrollbar="false"><view class="graph-directory-row"><view wx:for="{{graphs}}" wx:key="graph_id" class="graph-directory-card card {{item.is_builtin ? 'graph-directory-built-in' : ''}}" bindtap="openGraph" data-graph-id="{{item.graph_id}}"><view class="graph-card-top"><text class="graph-card-icon">◇</text><text class="graph-card-status">{{item.status === 'processing' ? '构建中' : item.status === 'ready' ? '已就绪' : item.status}}</text></view><text class="graph-card-name">{{item.name}}</text><text class="graph-card-desc">{{item.description || '暂无简介'}}</text><text class="graph-card-meta">{{item.node_count || 0}} 节点 · {{item.edge_count || 0}} 关系</text><view wx:if="{{item.status === 'processing'}}" class="graph-progress"><view class="graph-progress-bar" style="width: {{item.build_job ? item.build_job.progress : 8}}%;"></view></view><text class="graph-card-action">{{item.status === 'processing' ? '查看构建状态' : '查看图谱'}} ↗</text></view></view></scroll-view>
+    <scroll-view scroll-x class="filter-scroll" enhanced="true" show-scrollbar="false"><view class="filter-row"><text wx:for="{{filters}}" wx:key="*this" class="filter {{activeFilter === item ? 'filter-active' : ''}}" bindtap="chooseFilter" data-filter="{{item}}">{{item}}</text></view></scroll-view>
+    <view class="graph-map card {{isFullscreen ? 'graph-map-fullscreen' : ''}}" style="{{isFullscreen ? 'position: fixed; z-index: 50; top: 0; right: 0; bottom: 0; left: 0; width: 100vw; height: 100vh; margin: 0; border-radius: 0;' : ''}}">
+      <view class="fullscreen-action" style="position: absolute; z-index: 5; top: 24rpx; right: 24rpx; padding: 14rpx 20rpx; border: 1rpx solid rgba(255,255,255,.18); border-radius: 30rpx; color: #d7e7ec; background: rgba(14,27,42,.76); font-size: 22rpx;" bindtap="toggleFullscreen">{{isFullscreen ? '退出全屏' : '全屏查看'}}</view>
+      <view class="map-grid"></view><view class="orbit orbit-a"></view><view class="orbit orbit-b"></view><view class="core-node">KG<text>安全图谱</text></view>
+      <view class="map-node map-node-a">M<text>恶意软件</text></view><view class="map-node map-node-b">W<text>行为</text></view><view class="map-node map-node-c">P<text>平台</text></view>
+      <view class="map-line line-a"></view><view class="map-line line-b"></view><view class="map-line line-c"></view>
+      <view class="map-caption"><text>当前为抽样邻域视图</text><text>滚动下方查看实体</text></view>
+    </view>
+    <view class="graph-tools"><button class="tool-btn card" bindtap="showTriples">三元组样例</button><button class="tool-btn card" bindtap="addNode">新建节点</button></view>
+    <view class="section-title graph-list-title"><text>实体样本</text><text>点击查看详情</text></view>
+    <view wx:if="{{filteredNodes.length}}" class="node-list">
+      <view wx:for="{{filteredNodes}}" wx:key="id" class="node-card card" bindtap="showNode" data-node-id="{{item.id}}">
+        <view class="node-mark" style="background: {{item.color}};">•</view><view class="node-copy"><text class="node-name">{{item.name}}</text><text class="node-detail">{{item.type}} · {{item.detail}}</text></view><view class="node-count"><text>{{item.count}}</text><text>关系</text></view><text class="node-arrow">›</text>
+      </view>
+    </view>
+    <view wx:else class="empty card">没有匹配的实体，换个关键词试试。</view>
+  </view>
+</view>
+<view wx:if="{{createOpen}}" class="graph-modal-mask" catchtap="closeCreateGraph"><view class="graph-modal-sheet" catchtap="noop"><view class="graph-modal-head"><view><text class="graph-modal-kicker">CREATE GRAPH</text><text class="graph-modal-title">上传文本创建图谱</text></view><text class="graph-modal-close" bindtap="closeCreateGraph">×</text></view><text class="modal-label">图谱名称</text><input class="modal-input" value="{{graphForm.name}}" data-field="name" bindinput="onGraphFieldInput" maxlength="160" placeholder="例如：我的威胁情报图谱" placeholder-class="modal-placeholder" /><text class="modal-label">图谱简介</text><textarea class="modal-textarea" value="{{graphForm.description}}" data-field="description" bindinput="onGraphFieldInput" maxlength="2000" placeholder="简要说明图谱内容和用途" placeholder-class="modal-placeholder"></textarea><text class="modal-label">语言层</text><view class="language-options"><text wx:for="{{languageOptions}}" wx:key="*this" class="language-option {{graphForm.language_mode === item ? 'language-option-active' : ''}}" bindtap="chooseLanguage" data-value="{{item}}">{{item === 'dual' ? '中英双层' : item === 'cn' ? '中文' : '英文'}}</text></view><view class="source-picker" bindtap="chooseSourceFile"><text class="source-picker-icon">↑</text><view><text class="source-picker-title">{{sourceFileName || '选择 TXT / Markdown 文件'}}</text><text class="source-picker-desc">UTF-8 编码，单文件不超过 10 MB</text></view></view><button class="modal-submit" bindtap="submitGraphBuild" loading="{{building}}">{{building ? '提交中' : '开始构建'}}</button></view></view>
+<bottom-nav active="graph"></bottom-nav>

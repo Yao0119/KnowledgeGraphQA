@@ -1,0 +1,6 @@
+<view class="bottom-nav safe-bottom">
+  <view wx:for="{{items}}" wx:key="key" class="bottom-item {{active === item.key ? 'bottom-item-active' : ''}}" bindtap="switchPage" data-key="{{item.key}}">
+    <text class="bottom-icon bottom-icon-{{item.key}}">{{item.icon}}</text>
+    <text class="bottom-label">{{item.label}}</text>
+  </view>
+</view>

@@ -1,0 +1,21 @@
+<view class="page qa-page">
+  <view class="qa-header safe-top"><view><text class="eyebrow">GRAPH QA / 03</text><text class="qa-title">问答检索</text></view><text class="clear-btn" bindtap="clearMessages">清空</text></view>
+  <scroll-view scroll-y class="conversation">
+    <view wx:if="{{!messages.length}}" class="qa-empty card"><view class="empty-symbol">?</view><text class="empty-title">从图谱开始提问</text><text class="empty-desc">输入一个实体、行为或关系，我会返回可追溯的图谱依据。</text></view>
+    <view wx:for="{{messages}}" wx:key="index" class="message-row {{item.role === 'user' ? 'message-user' : 'message-bot'}}">
+      <view class="message-avatar">{{item.role === 'user' ? '我' : 'KG'}}</view>
+      <view class="message-content"><view class="message-bubble">{{item.content}}</view><text class="message-time">{{item.time}}</text>
+        <view wx:if="{{item.role === 'bot' && item.sources.length}}" class="source-toggle" bindtap="toggleSources" data-index="{{index}}"><text>{{item.sources.length}} 条图谱依据</text><text>{{expanded[index] ? '收起' : '展开'}}</text></view>
+        <view wx:if="{{expanded[index]}}" class="source-list">
+          <view wx:for="{{item.sources}}" wx:key="source" class="source-item"><text class="source-entity">{{item.source}}</text><text class="source-relation">{{item.relation}}</text><text class="source-entity">{{item.target}}</text></view>
+        </view>
+      </view>
+    </view>
+    <view wx:if="{{loading}}" class="message-row message-bot"><view class="message-avatar">KG</view><view class="message-content"><view class="message-bubble loading-bubble"><text>正在检索图谱</text><text class="loading-dots">•••</text></view></view></view>
+  </scroll-view>
+  <view class="qa-bottom-dock">
+    <view class="suggestions"><text wx:for="{{suggestions}}" wx:key="*this" class="suggestion" bindtap="useSuggestion" data-question="{{item}}">{{item}}</text></view>
+    <view class="composer"><textarea value="{{question}}" bindinput="onInput" bindconfirm="sendQuestion" confirm-type="send" auto-height maxlength="300" placeholder="问问你的知识图谱..." placeholder-class="composer-placeholder"></textarea><button class="send-btn {{canSend ? 'send-active' : ''}}" bindtap="sendQuestion" loading="{{loading}}">↑</button></view>
+  </view>
+</view>
+<bottom-nav active="qa"></bottom-nav>

@@ -1,0 +1,15 @@
+<view class="page dual-page">
+  <view class="dual-header safe-top"><view><text class="eyebrow">BILINGUAL GRAPH / 03</text><text class="dual-title">中英双层对照</text></view><text class="dual-note">ALIGN_WITH</text></view>
+  <view class="section dual-content">
+    <view class="selector card" bindtap="chooseVirus"><view><text class="selector-label">当前对照实体</text><text class="selector-value">{{virus}}</text></view><text class="selector-arrow">⌄</text></view>
+    <view class="mapping-banner"><view class="mapping-line"></view><view class="mapping-core">↔</view><view><text class="mapping-title">核心节点已映射</text><text class="mapping-desc">两层只对齐同一恶意软件核心实体</text></view></view>
+    <view class="layer-grid">
+      <view class="layer-panel card"><view class="layer-heading"><text class="layer-dot cn-dot"></text><text>中文层</text><text class="layer-code">CN</text></view><view wx:for="{{layers.cn}}" wx:key="name" class="layer-node" bindtap="showNode" data-node-name="{{item.name}}"><view class="layer-node-mark">{{index + 1}}</view><view><text class="layer-node-name">{{item.name}}</text><text class="layer-node-type">{{item.type}}</text></view></view></view>
+      <view class="layer-panel card"><view class="layer-heading"><text class="layer-dot en-dot"></text><text>English layer</text><text class="layer-code">EN</text></view><view wx:for="{{layers.en}}" wx:key="name" class="layer-node" bindtap="showNode" data-node-name="{{item.name}}"><view class="layer-node-mark">{{index + 1}}</view><view><text class="layer-node-name">{{item.name}}</text><text class="layer-node-type">{{item.type}}</text></view></view></view>
+    </view>
+    <view class="section-title relation-title"><text>关系对照</text><text>当前节点邻域</text></view>
+    <view class="relation-card card"><view wx:for="{{relations}}" wx:key="relation" class="relation-row"><text>{{item.cn}}</text><text>{{item.relation}}</text><text>{{item.en}}</text></view></view>
+  </view>
+  <view wx:if="{{selected}}" class="detail-mask" bindtap="closeDetail"><view class="detail-sheet" catchtap="noop"><text class="detail-kicker">NODE DETAIL</text><text class="detail-name">{{selected.name}}</text><text class="detail-type">{{selected.type}} · {{selected.relation}}</text><view class="detail-close" bindtap="closeDetail">关闭</view></view></view>
+</view>
+<bottom-nav active="dual"></bottom-nav>

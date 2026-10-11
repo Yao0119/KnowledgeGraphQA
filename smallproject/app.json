@@ -1,0 +1,22 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/graph/graph",
+    "pages/dual/dual",
+    "pages/virus/virus",
+    "pages/qa/qa",
+    "pages/predict/predict",
+    "pages/customers/customers",
+    "pages/profile/profile"
+  ],
+  "window": {
+    "navigationBarTextStyle": "black",
+    "navigationBarBackgroundColor": "#F2F2F2",
+    "navigationStyle": "custom",
+    "backgroundColor": "#F4F7FA",
+    "backgroundTextStyle": "light"
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json",
+  "lazyCodeLoading": "requiredComponents"
+}
