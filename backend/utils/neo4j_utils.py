@@ -252,25 +252,77 @@ def get_full_graph(
     try:
         driver = get_neo4j_driver()
         with driver.session() as session:
-            result = session.run(
-                """
-                MATCH (a:Malware)
-                WHERE coalesce(a.graph_id, 'builtin-malware') = $graph_id
-                WITH a SKIP $offset LIMIT $seeds
-                MATCH (a)-[r]->(b)
-                WHERE coalesce(b.graph_id, 'builtin-malware') = $graph_id
-                  AND ($hide_text = false
-                   OR NOT (b:Solution OR b:Behavior OR b:Description
-                           OR b:DateValue OR b:CountValue))
-                RETURN a, r, b
-                LIMIT $limit
-                """,
-                offset=offset,
-                seeds=seeds,
-                limit=limit,
-                hide_text=bool(hide_text),
+            malware_count = session.run(
+                "MATCH (a:Malware) "
+                "WHERE coalesce(a.graph_id, 'builtin-malware') = $graph_id "
+                "RETURN count(a) AS c",
                 graph_id=graph_id,
-            )
+            ).single()["c"]
+
+            # 内置恶意软件图谱沿用“病毒种子展开邻域”的采样方式；
+            # 用户上传图谱只有 :Entity + node_type 属性，不能再用 :Malware 过滤，
+            # 否则新建图谱明明已经写入 Neo4j，前端却会得到空图。
+            if malware_count:
+                result = session.run(
+                    """
+                    MATCH (a:Malware)
+                    WHERE coalesce(a.graph_id, 'builtin-malware') = $graph_id
+                    WITH a SKIP $offset LIMIT $seeds
+                    MATCH (a)-[r]->(b)
+                    WHERE coalesce(b.graph_id, 'builtin-malware') = $graph_id
+                      AND ($hide_text = false
+                       OR NOT (b:Solution OR b:Behavior OR b:Description
+                               OR b:DateValue OR b:CountValue))
+                    RETURN a, r, b
+                    LIMIT $limit
+                    """,
+                    offset=offset,
+                    seeds=seeds,
+                    limit=limit,
+                    hide_text=bool(hide_text),
+                    graph_id=graph_id,
+                )
+                total_seed = malware_count
+                seed_label = "病毒"
+                sample_mode = "malware-neighborhood"
+            else:
+                total_seed = session.run(
+                    "MATCH (n) "
+                    "WHERE coalesce(n.graph_id, 'builtin-malware') = $graph_id "
+                    "RETURN count(n) AS c",
+                    graph_id=graph_id,
+                ).single()["c"]
+                result = session.run(
+                    """
+                    MATCH (a)
+                    WHERE coalesce(a.graph_id, 'builtin-malware') = $graph_id
+                      AND ($hide_text = false
+                       OR NOT (a:Solution OR a:Behavior OR a:Description
+                               OR a:DateValue OR a:CountValue
+                               OR coalesce(a.node_type, '') IN $text_types))
+                    WITH a
+                    ORDER BY toLower(coalesce(a.name, a.title, elementId(a)))
+                    SKIP $offset LIMIT $seeds
+                    OPTIONAL MATCH (a)-[r]-(b)
+                    WHERE b IS NULL OR (
+                        coalesce(b.graph_id, 'builtin-malware') = $graph_id
+                        AND ($hide_text = false
+                         OR NOT (b:Solution OR b:Behavior OR b:Description
+                                 OR b:DateValue OR b:CountValue
+                                 OR coalesce(b.node_type, '') IN $text_types))
+                    )
+                    RETURN a, r, b
+                    LIMIT $limit
+                    """,
+                    offset=offset,
+                    seeds=seeds,
+                    limit=limit,
+                    hide_text=bool(hide_text),
+                    graph_id=graph_id,
+                    text_types=["Solution", "Behavior", "Description", "DateValue", "CountValue"],
+                )
+                seed_label = "实体"
+                sample_mode = "entity-neighborhood"
 
             nodes: Dict[str, Dict[str, Any]] = {}
             edges: List[Dict[str, Any]] = []
@@ -284,21 +336,19 @@ def get_full_graph(
                 # 统一用 node_payload，字段形状与 /api/graph/layers 保持一致
                 # （id/label/type/lang/name_orig/norm_name/is_core）
                 for node in (a, b):
+                    if node is None:
+                        continue
                     nid = node.element_id
                     if nid not in nodes:
                         nodes[nid] = node_payload(node)
 
                 seed_ids.add(a.element_id)
-                edges.append({
-                    "from": a.element_id,
-                    "to": b.element_id,
-                    "label": r.get("relation_name") or r.type,
-                })
-
-            total_malware = session.run(
-                "MATCH (a:Malware) WHERE coalesce(a.graph_id, 'builtin-malware') = $graph_id RETURN count(a) AS c",
-                graph_id=graph_id,
-            ).single()["c"]
+                if r is not None and b is not None:
+                    edges.append({
+                        "from": a.element_id,
+                        "to": b.element_id,
+                        "label": r.get("relation_name") or r.type,
+                    })
 
             return {
                 "nodes": list(nodes.values()),
@@ -312,7 +362,10 @@ def get_full_graph(
                     "node_count": len(nodes),
                     "edge_count": len(edges),
                     # 种子总数，前端据此判断"是否还有下一批"
-                    "total_malware": total_malware,
+                    "total_malware": malware_count,
+                    "total_seed": total_seed,
+                    "seed_label": seed_label,
+                    "sample_mode": sample_mode,
                 },
             }
     except Exception as e:

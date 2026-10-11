@@ -63,6 +63,7 @@ export default function GraphManager() {
   const { graphId: routeGraphId } = useParams();
   const selectedGraphId = routeGraphId || localStorage.getItem("active_graph_id") || "builtin-malware";
   const [graphMeta, setGraphMeta] = useState(null);
+  const sampleLabel = graphMeta?.is_builtin || selectedGraphId === "builtin-malware" ? "病毒" : "实体";
   const [stats, setStats] = useState({ nodes: 0, relationships: 0 });
   const [sample, setSample] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -157,14 +158,16 @@ export default function GraphManager() {
 
       // 说明清楚"图上显示的是抽样，不是全库"，避免误解成图谱只有这么点东西
       const meta0 = graphPayload?.meta ?? {};
+      const seedLabel = meta0.seed_label || (selectedGraphId === "builtin-malware" ? "病毒" : "实体");
+      const totalSeed = meta0.total_seed ?? meta0.total_malware ?? "?";
       notification.success({
         message: `已加载 ${nodes.length} 个节点 / ${edges.length} 条关系`,
         description:
-          `抽样方式：${meta0.seed_count ?? useSeeds} 个病毒种子展开邻域` +
+          `抽样方式：${meta0.seed_count ?? useSeeds} 个${seedLabel}展开邻域` +
           // 范围用普通连字符（破折号是全站禁用字符）
-          `（第 ${useOffset + 1}-${useOffset + (meta0.seed_count ?? useSeeds)} 个，共 ${meta0.total_malware ?? "?"} 个病毒）。` +
+          `（第 ${useOffset + 1}-${useOffset + (meta0.seed_count ?? useSeeds)} 个，共 ${totalSeed} 个${seedLabel}）。` +
           `全库共 ${rawStats.nodes} 节点 / ${rawStats.relationships} 关系，` +
-          `170 万节点的图谱无法一次画完，所以按种子抽样。`,
+          `${selectedGraphId === "builtin-malware" ? "内置图谱无法一次画完，所以按种子抽样。" : "当前图谱按实体及其关系抽样展示。"}`,
         placement: "bottomRight",
         duration: 6,
       });
@@ -690,10 +693,10 @@ export default function GraphManager() {
                   style={{ width: 132 }}
                   onChange={(v) => loadData({ seeds: v, offset: 0 })}
                   options={[
-                    { value: 10, label: "10 个病毒" },
-                    { value: 25, label: "25 个病毒" },
-                    { value: 40, label: "40 个病毒" },
-                    { value: 80, label: "80 个病毒" },
+                    { value: 10, label: `10 个${sampleLabel}` },
+                    { value: 25, label: `25 个${sampleLabel}` },
+                    { value: 40, label: `40 个${sampleLabel}` },
+                    { value: 80, label: `80 个${sampleLabel}` },
                   ]}
                 />
                 <Button
@@ -703,7 +706,9 @@ export default function GraphManager() {
                 >
                   换一批
                 </Button>
-                <Tooltip title="解决方案 / 病毒行为 / 综合描述 这类节点占全库约 72%，名字还是整句中文（最长上百字）。关闭后只保留 实体-关系-实体 结构，图更清爽。">
+                <Tooltip title={selectedGraphId === "builtin-malware"
+                  ? "解决方案 / 病毒行为 / 综合描述 这类节点占全库约 72%，名字还是整句中文（最长上百字）。关闭后只保留实体-关系-实体结构，图更清爽。"
+                  : "过滤解决方案、行为、描述等文本节点，只保留更适合浏览的实体关系结构。"}>
                   <Space size={6} style={{ cursor: "help" }}>
                     <Switch
                       size="small"
@@ -776,11 +781,13 @@ export default function GraphManager() {
             >
               当前显示 <b>{meta.node_count ?? graphData.nodes.length}</b> 个节点 /{" "}
               <b>{meta.edge_count ?? graphData.edges.length}</b> 条关系，
-              按 <b>{meta.seed_count ?? seeds}</b> 个病毒种子展开邻域抽样
+              按 <b>{meta.seed_count ?? seeds}</b> 个{meta.seed_label || sampleLabel}展开邻域抽样
               （第 {offset + 1}-{offset + (meta.seed_count ?? seeds)} 个，共{" "}
-              {meta.total_malware?.toLocaleString?.() ?? "?"} 个病毒）。
+              {(meta.total_seed ?? meta.total_malware)?.toLocaleString?.() ?? "?"} 个{meta.seed_label || sampleLabel}）。
               全库共 {stats.nodes.toLocaleString()} 节点 / {stats.relationships.toLocaleString()} 关系，
-              无法一次画完，请用「换一批」或调整种子数浏览。
+              {selectedGraphId === "builtin-malware"
+                ? "无法一次画完，请用「换一批」或调整种子数浏览。"
+                : "当前按实体及其关系抽样展示，可用「换一批」浏览更多内容。"}
               <br />
               操作：<b>滚轮缩放</b>（以鼠标位置为中心）、<b>拖拽平移</b>、单击节点高亮、双击节点编辑。
               {hideText ? " 已开启「只看实体」。" : ""}
