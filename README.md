@@ -34,10 +34,10 @@
 | **知识图谱可视化** | vis-network 渲染；按**病毒种子抽样**取子图；支持换一批、只看实体、滚轮缩放、拖拽平移、节点增删改 |
 | **中英双层对照** | 左右两个独立图谱面板分别渲染中文层 / 英文层，两个核心节点隔线相对；点节点跨面板联动 + 中英属性并排对比 |
 | **智能问答** | 两阶段图谱检索（实体字面命中 → 中文 n-gram 关键词兜底）+ LLM 生成；回答下方可展开图谱依据 |
-| **系统推理** | LLM 结合图谱证据推理 |
+| **系统推理** | 前端入口已移除，统一使用问答检索；后端接口暂保留兼容 |
 | **威胁预测** | 后端已实现，前端页面为占位 |
 | **病毒检测** | 拖拽 / 点选**上传文件** + 分阶段扫描反馈 + ClamAV 引擎明细报告；扫描服务不可用时明确返回错误 |
-| **系统设置** | 页面上配置 LLM 后端 / API Key / 模型 / 基址；保存即生效并写入 `.env`；带连通性测试 |
+| **系统设置** | 普通用户可调整主题、字号、密度、动画和默认图谱；管理员额外配置 LLM 后端 / API Key / 模型 / 基址 |
 
 ---
 
@@ -351,7 +351,6 @@ cd frontend && npm run test-api
 | `/dashboard/graph` | **知识图谱管理** | 图谱可视化 + 三元组样例 + 节点增删改 |
 | `/dashboard/graph-dual` | **中英双层对照** | 左右两个图谱面板 + 跨面板联动 + 中英属性对比 |
 | `/dashboard/qa` | 问答检索 | 提问、回答、可展开的图谱依据 |
-| `/dashboard/reasoning` | 系统推理 | |
 | `/dashboard/virus` | 病毒检测 | 拖拽 / 点选上传文件 + ClamAV 扫描报告 |
 | `/dashboard/predict` | 预测 | 占位 |
 | `/dashboard/customers` | 客户管理 | 仅管理员 |
@@ -415,7 +414,7 @@ cd frontend && npm run test-api
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | POST | `/api/qa/ask` | 知识图谱问答 |
-| POST | `/api/reasoning/reason` | LLM + 图谱推理 |
+| POST | `/api/reasoning/reason` | 旧版推理接口（前端已移除，保留后端兼容） |
 | POST | `/api/prediction/predict` | 威胁预测 |
 | POST | `/api/virus-detection` | 旧版接口（410），不再返回模拟结论 |
 | POST | `/api/virus-detection/upload` | 文件上传检测，转发到内部 ClamAV REST 服务 |
@@ -720,7 +719,7 @@ pkill ollama
 | **文件上传检测依赖 ClamAV REST** | 前端负责文件选择和报告呈现，FastAPI 将文件转发给内部 ClamAV 服务；请先启动 `deploy/clamav-rest.compose.yml` 并配置 `CLAMAV_REST_URL` |
 | **预测页未接入** | 后端 `/api/prediction/predict` 已实现，前端页面为占位 |
 | **Node 版本提示** | 健康检查里可能出现「服务状态：异常」，那是 LLM 未配置导致的 `degraded`，不是后端故障 |
-| **系统设置仅管理员** | API Key 属系统级配置，写接口复用了 `require_admin` |
+| **系统设置分层** | 主题、字号、密度、动画和默认图谱为用户本地偏好；LLM API Key 属系统级配置，仅管理员可修改 |
 
 ---
 
