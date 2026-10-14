@@ -1,0 +1,133 @@
+name: knowledgegraphqa
+
+services:
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-kg_qa_system}
+      TZ: ${TZ:-Asia/Shanghai}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    networks:
+      - internal
+
+  neo4j:
+    image: neo4j:2025.03-community
+    restart: unless-stopped
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?NEO4J_PASSWORD is required}
+      KG_NEO4J_PASSWORD: ${NEO4J_PASSWORD:?NEO4J_PASSWORD is required}
+      NEO4J_server_memory_heap_initial__size: 384m
+      NEO4J_server_memory_heap_max__size: 512m
+      NEO4J_server_memory_pagecache_size: 512m
+      TZ: ${TZ:-Asia/Shanghai}
+    volumes:
+      - neo4j_data:/data
+      - ./deploy/neo4j/import:/import
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -a bolt://127.0.0.1:7687 -u neo4j -p \"$${KG_NEO4J_PASSWORD}\" 'RETURN 1' >/dev/null 2>&1"]
+      interval: 15s
+      timeout: 10s
+      retries: 30
+      start_period: 45s
+    networks:
+      - internal
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    environment:
+      APP_ENV_FILE: /app/runtime/.env
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:?ADMIN_TOKEN is required}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-60}
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: ${MYSQL_USER:-root}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-kg_qa_system}
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: ${NEO4J_USER:-neo4j}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:?NEO4J_PASSWORD is required}
+      CLAMAV_REST_URL: http://clamav-rest:9000/v2/scan
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost}
+      TZ: ${TZ:-Asia/Shanghai}
+    volumes:
+      - ./deploy/runtime:/app/runtime
+      - ./backend/data:/app/backend/data
+    depends_on:
+      mysql:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=5)"
+      interval: 15s
+      timeout: 8s
+      retries: 10
+      start_period: 20s
+    networks:
+      - internal
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/certbot-www:/var/www/certbot:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - ./deploy/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - internal
+
+  clamav-rest:
+    image: ${CLAMAV_IMAGE:-ajilaag/clamav-rest:latest}
+    restart: "no"
+    mem_limit: 1g
+    memswap_limit: 1g
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        sed '/sleep 120s/d; /echo RELOAD/d' /usr/bin/entrypoint.sh > /tmp/clamav-entrypoint.sh
+        exec /bin/bash /tmp/clamav-entrypoint.sh
+    environment:
+      SIGNATURE_CHECKS: ${CLAMAV_SIGNATURE_CHECKS:-24}
+    profiles:
+      - clamav
+    volumes:
+      - ./deploy/clamav-data:/clamav/data
+    networks:
+      - internal
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  mysql_data:
+  neo4j_data:

@@ -1,6 +1,6 @@
 # 知识图谱安全分析 · 微信小程序
 
-这是 KnowledgeGraphQA 的原生微信小程序入口，当前为前端 MVP，后端服务器暂未接入。
+这是 KnowledgeGraphQA 的原生微信小程序入口，已接入 `http://43.142.37.157` 的 FastAPI 后端。
 
 ## 当前页面
 
@@ -15,19 +15,40 @@
 
 D:\E\Graph_system\KnowledgeGraphQA\smallproject
 
-## 接入后端
+## 接入方式
 
-编辑 utils/api.js 和 app.js：
+当前 app.js 已配置：
 
-1. 将 utils/api.js 顶部的 USE_MOCK 改为 false。
-2. 将 app.js 的 globalData.useMock 改为 false。
-3. 将 globalData.apiBase 改为后端地址，例如 https://example.com。
-4. 在微信公众平台配置合法 request 域名。
+1. `globalData.apiBase = "http://43.142.37.157"`
+2. `globalData.useMock = false`
+3. `utils/api.js` 的 `USE_MOCK = false`
 
-已预留的接口路径与现有后端保持一致：
+微信开发者工具测试时，请在“详情 → 本地设置”中勾选“不校验合法域名、web-view（业务域名）、TLS 版本以及 HTTPS 证书”。
+
+生产发布前需要为后端配置 HTTPS 域名并在微信公众平台加入 request 合法域名；微信正式环境不能直接使用 IP 和 HTTP。
+
+## 登录
+
+在“我的 → 服务连接”中登录。登录成功后 JWT 会保存在本地，用于：
+
+- GET /api/graphs
+- POST /api/graphs/build
+- POST /api/virus-detection/upload
+- GET /api/admin/customers
+
+已接入的接口：
 
 - GET /api/graph/summary
 - GET /api/graph/full
+- GET /api/graph/samples
+- GET /api/graph/layers
+- GET /api/graph/malware-list
 - POST /api/qa/ask
+- POST /api/prediction/predict
+- POST /api/auth/login
+
+## 当前服务器限制
+
+`43.142.37.157` 只有 3.6 GB 内存。ClamAV 通过 `1 GB` 容器内存上限运行，病毒库目录已持久化，并关闭了自动重启和冗余的数据库重载。小文件扫描已经验证通过；由于 ClamAV 常驻内存接近上限，后续如果要提高并发或扫描大文件，仍建议升级服务器内存。
 
 当前 mock 数据与接口响应结构都集中在 utils/api.js，联调时不需要修改页面组件。

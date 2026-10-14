@@ -20,40 +20,24 @@ import {
 import Sidebar from "../components/Sidebar";
 import LLMSettingsModal from "../components/LLMSettingsModal";
 import UserSettingsModal from "../components/UserSettingsModal";
+import { clearSession, getCurrentUser } from "../api";
 import { applyPreferences, getPreferences } from "../preferences";
 
 export default function Dashboard() {
     const navigate = useNavigate();
-    const [userInfo, setUserInfo] = useState(null);
-    const [isAdmin, setIsAdmin] = useState(false);
+    const [userInfo] = useState(() => getCurrentUser());
+    const [isAdmin, setIsAdmin] = useState(() => getCurrentUser()?.role === "admin");
     const [collapsed, setCollapsed] = useState(false);
     // 用户设置与管理员大模型设置分开，避免普通用户点开系统设置后只看到无权限提示。
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [llmSettingsOpen, setLlmSettingsOpen] = useState(false);
 
     useEffect(() => {
-        // 从 localStorage 读取用户信息
-        const user = localStorage.getItem("user");
-        const token = localStorage.getItem("token");
-
-        if (!token || !user) {
-            navigate("/login");
-            return;
+        // ProtectedRoute 已经保证会话完整；这里只应用用户偏好，不做第二次鉴权跳转。
+        if (userInfo?.id) {
+            applyPreferences(getPreferences(userInfo.id));
         }
-
-        try {
-            const userData = JSON.parse(user);
-            setUserInfo(userData);
-            setIsAdmin(userData.role === "admin");
-            applyPreferences(getPreferences(userData.id));
-        } catch (err) {
-            console.error("用户信息解析失败:", err);
-            localStorage.removeItem("token");
-            localStorage.removeItem("user");
-            localStorage.removeItem("isAdmin");
-            navigate("/login");
-        }
-    }, [navigate]);
+    }, [userInfo]);
 
     const handleLogout = () => {
         Modal.confirm({
@@ -62,11 +46,8 @@ export default function Dashboard() {
             okText: "确认",
             cancelText: "取消",
             onOk() {
-                localStorage.removeItem("token");
-                localStorage.removeItem("user");
-                localStorage.removeItem("isAdmin");
-                localStorage.removeItem("role");
-                navigate("/login");
+                clearSession();
+                navigate("/login", { replace: true });
             },
         });
     };

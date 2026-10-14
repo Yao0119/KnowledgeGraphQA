@@ -446,15 +446,29 @@ async def write_llm_settings(payload: LLMSettingsRequest, _admin=Depends(require
 
 
 @app.post("/api/settings/llm/test")
-async def test_llm_settings_route(_admin=Depends(require_admin)):
+async def test_llm_settings_route(
+    payload: Optional[LLMSettingsRequest] = None,
+    _admin=Depends(require_admin),
+):
     """
     用当前设置探测 LLM 是否真的可用（不消耗 token）
+
+    请求体中的字段是页面上尚未保存的临时值；不传则测试当前已生效配置。
 
     Returns:
         dict: {"success": True, "data": {ok, provider, model, message}}
     """
     try:
-        return {"success": True, "data": test_llm_settings()}
+        values = payload or LLMSettingsRequest()
+        return {
+            "success": True,
+            "data": test_llm_settings(
+                api_key=values.api_key,
+                provider=values.provider,
+                model=values.model,
+                base_url=values.base_url,
+            ),
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"测试失败: {str(e)}")
 

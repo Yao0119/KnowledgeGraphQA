@@ -1,0 +1,13 @@
+.git
+.gitignore
+.idea
+.codex-logs
+.venv
+**/__pycache__
+**/*.py[cod]
+frontend/node_modules
+frontend/dist
+backend/data/graph_uploads
+deploy/neo4j/import/*
+deploy/runtime/*
+*.log

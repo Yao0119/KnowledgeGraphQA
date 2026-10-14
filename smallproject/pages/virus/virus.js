@@ -1,8 +1,9 @@
-const { request } = require("../../utils/api");
+const { uploadScan } = require("../../utils/api");
 
 Page({
   data: {
     fileName: "",
+    filePath: "",
     scanning: false,
     report: null,
     checks: [
@@ -16,18 +17,35 @@ Page({
     wx.chooseMessageFile({
       count: 1,
       type: "file",
-      success: (res) => this.setData({ fileName: res.tempFiles[0].name, report: null }),
-      fail: () => wx.showToast({ title: "未选择文件，已进入演示模式", icon: "none" }),
+      success: (res) => this.setData({ fileName: res.tempFiles[0].name, filePath: res.tempFiles[0].path, report: null }),
+      fail: () => wx.showToast({ title: "未选择文件", icon: "none" }),
     });
   },
   async startScan() {
+    if (!this.data.filePath) {
+      wx.showToast({ title: "请先选择文件", icon: "none" });
+      return;
+    }
     this.setData({ scanning: true, report: null });
     try {
-      const res = await request({ path: "/api/virus-detection", method: "POST", data: { file_name: this.data.fileName || "demo-sample.exe" } });
-      this.setData({ report: res.data || res, scanning: false });
+      const report = await uploadScan({ filePath: this.data.filePath });
+      report.scan_results = (report.scan_results || []).map((item) => ({
+        label: item.engine || item.label || "ClamAV",
+        detail: [item.status, item.result || item.detail].filter(Boolean).join(" · "),
+      }));
+      this.setData({ report, scanning: false });
     } catch (error) {
       this.setData({ scanning: false });
-      wx.showToast({ title: "检测服务暂未连接", icon: "none" });
+      if (error && error.statusCode === 401) {
+        wx.showModal({
+          title: "需要登录",
+          content: "病毒检测需要登录令牌，请先到“我的”页面登录。",
+          confirmText: "去登录",
+          success: (res) => { if (res.confirm) wx.navigateTo({ url: "/pages/profile/profile" }); },
+        });
+        return;
+      }
+      wx.showToast({ title: (error && error.message) || "检测服务暂未连接", icon: "none" });
     }
   },
 });

@@ -19,8 +19,13 @@ Page({
   },
   async loadSummary() {
     try {
-      const res = await request({ path: "/api/graph/summary" });
-      this.setData({ summary: res.data || res });
+      const [summaryRes, healthRes] = await Promise.all([
+        request({ path: "/api/graph/summary" }),
+        request({ path: "/api/health" }),
+      ]);
+      const summary = summaryRes.data || summaryRes;
+      summary.status = healthRes.overall || (healthRes.backend ? "healthy" : "degraded");
+      this.setData({ summary });
     } catch (error) {
       this.setData({ summary: { nodes: 0, relationships: 0, status: "degraded" } });
     }

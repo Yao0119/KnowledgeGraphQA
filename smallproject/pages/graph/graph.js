@@ -1,5 +1,37 @@
 const { request, uploadBuild, mock } = require("../../utils/api");
 
+const TYPE_LABELS = {
+  Virus: "恶意软件",
+  Malware: "恶意软件",
+  MalwareType: "威胁类型",
+  Family: "病毒家族",
+  Alias: "别名",
+  Platform: "运行环境",
+  Behavior: "威胁行为",
+  Solution: "解决方案",
+  Description: "综合描述",
+  DateValue: "日期",
+  CountValue: "数量",
+  Entity: "实体",
+};
+
+const TYPE_COLORS = {
+  恶意软件: "#F26B5E",
+  病毒家族: "#8B7CF6",
+  运行环境: "#3F9AE6",
+  威胁行为: "#F3A64A",
+  解决方案: "#18BFAE",
+  威胁类型: "#18BFAE",
+};
+
+function normalizeNodeType(type) {
+  return TYPE_LABELS[type] || type || "实体";
+}
+
+function normalizeColor(type) {
+  return TYPE_COLORS[type] || "#6E6E73";
+}
+
 Page({
   data: {
     keyword: "",
@@ -23,7 +55,8 @@ Page({
   async loadGraphs() {
     try {
       const res = await request({ path: "/api/graphs" });
-      this.setData({ graphs: res.data || mock.graphs });
+      const graphs = res.data || res;
+      this.setData({ graphs: Array.isArray(graphs) && graphs.length ? graphs : mock.graphs });
     } catch (error) {
       this.setData({ graphs: mock.graphs });
     }
@@ -31,9 +64,44 @@ Page({
   async loadGraph() {
     this.setData({ loading: true });
     try {
-      const [summaryRes, graphRes] = await Promise.all([request({ path: "/api/graph/summary" }), request({ path: "/api/graph/full" })]);
-      const nodes = (graphRes.data && graphRes.data.nodes) || mock.nodes;
-      this.setData({ summary: summaryRes.data || summaryRes, nodes, filteredNodes: nodes, loading: false });
+      const [summaryRes, graphRes, sampleRes] = await Promise.all([
+        request({ path: "/api/graph/summary" }),
+        request({ path: "/api/graph/full", data: { seeds: 8, limit: 60 } }),
+        request({ path: "/api/graph/samples", data: { limit: 4 } }),
+      ]);
+      const graphData = graphRes.data || graphRes;
+      const rawNodes = graphData.nodes || [];
+      const rawEdges = graphData.edges || [];
+      const degree = {};
+      rawEdges.forEach((edge) => {
+        degree[edge.from] = (degree[edge.from] || 0) + 1;
+        degree[edge.to] = (degree[edge.to] || 0) + 1;
+      });
+      const nodes = rawNodes.map((node) => {
+        const type = normalizeNodeType(node.type);
+        return {
+          id: node.id,
+          name: node.label || node.name || node.name_orig || "未命名实体",
+          type,
+          detail: node.name_orig && node.name_orig !== node.label ? node.name_orig : (node.lang === "en" ? "English" : "中文图谱"),
+          color: normalizeColor(type),
+          count: degree[node.id] || 0,
+        };
+      });
+      const sampleData = sampleRes.data || sampleRes;
+      const triples = (sampleData.data || []).map((item) => ({
+        source: item.source && item.source.name ? item.source.name : item.source,
+        relation: item.relation,
+        target: item.target && item.target.name ? item.target.name : item.target,
+      }));
+      const usableNodes = nodes.length ? nodes : mock.nodes;
+      this.setData({
+        summary: summaryRes.data || summaryRes,
+        nodes: usableNodes,
+        filteredNodes: usableNodes,
+        triples: triples.length ? triples : mock.triples,
+        loading: false,
+      });
     } catch (error) {
       this.setData({ loading: false });
       wx.showToast({ title: "已显示本地图谱样例", icon: "none" });
@@ -122,6 +190,15 @@ Page({
       wx.showToast({ title: "已提交，后台构建中", icon: "success" });
     } catch (error) {
       this.setData({ building: false });
+      if (error && error.statusCode === 401) {
+        wx.showModal({
+          title: "需要登录",
+          content: "创建图谱需要登录令牌，请先到“我的”页面登录。",
+          confirmText: "去登录",
+          success: (res) => { if (res.confirm) wx.navigateTo({ url: "/pages/profile/profile" }); },
+        });
+        return;
+      }
       wx.showToast({ title: "创建图谱失败", icon: "none" });
     }
   },

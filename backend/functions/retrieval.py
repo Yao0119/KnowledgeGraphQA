@@ -74,7 +74,7 @@ _EN_STOPWORDS = {
 }
 
 _CJK_RUN_RE = re.compile(r"[\u4e00-\u9fff]+")
-_EN_TOKEN_RE = re.compile(r"[a-zA-Z][a-zA-Z0-9._+\-]{1,}")
+_EN_TOKEN_RE = re.compile(r"[a-zA-Z][a-zA-Z0-9._+\-/]{1,}")
 
 # 单个候选词的最大长度，超过基本不可能是图谱实体名
 _MAX_TERM_LEN = 8
@@ -316,7 +316,7 @@ def get_node_names(force_refresh: bool = False, graph_id: str = DEFAULT_GRAPH_ID
             # 如果还想进一步扩大覆盖，可以调大环境变量 KG_ENTITY_MAX_NAMES 对应的
             #   _ENTITY_MAX_NAMES（默认 20000）：名字都很短，放宽到 10 万量级内存代价很小。
             records = session.run(
-                "MATCH (n) WHERE coalesce(n.graph_id, 'builtin-malware') = $graph_id "
+                "MATCH (n:Entity) WHERE coalesce(n.graph_id, 'builtin-malware') = $graph_id "
                 "AND n.name IS NOT NULL "
                 "AND NOT (n:Solution OR n:Behavior OR n:Description "
                 "OR n:DateValue OR n:CountValue) "
@@ -368,6 +368,39 @@ def match_entity_names(
     """
     if not question:
         return []
+
+    # 完整的英文标识（含 Malware/Platform 路径中的 "/"）优先走 norm_name 索引。
+    # 这比先加载两万个节点名再逐个做子串匹配更快，也能稳定命中
+    # "RiskWare/MacOS.Apfell" 这类带斜杠的完整名称。
+    if names is None:
+        exact_keys = []
+        for token in _EN_TOKEN_RE.findall(question.lower()):
+            token = token.strip().lower()
+            if len(token) >= 3 and token not in exact_keys:
+                exact_keys.append(token)
+        if exact_keys:
+            try:
+                driver = get_neo4j_driver()
+                with driver.session() as session:
+                    records = session.run(
+                        """
+                        MATCH (n:Entity)
+                        WHERE coalesce(n.graph_id, 'builtin-malware') = $graph_id
+                          AND n.norm_name IN $keys
+                        RETURN DISTINCT toString(n.name) AS name
+                        LIMIT $limit
+                        """,
+                        graph_id=graph_id,
+                        keys=exact_keys,
+                        limit=max_hits,
+                    )
+                    exact_hits = [rec["name"] for rec in records if rec["name"]]
+            except Exception as exc:
+                print(f"⚠️ 实体索引匹配失败: {exc}")
+                exact_hits = []
+            if exact_hits:
+                exact_hits.sort(key=len, reverse=True)
+                return exact_hits[:max_hits]
 
     pool = names if names is not None else get_node_names(graph_id=graph_id)
     if not pool:
@@ -457,6 +490,33 @@ def fetch_triples_by_entities(
     if not entities:
         return []
 
+    # norm_name 有索引，英文/路径型实体从这里走可以避免全节点扫描。
+    norm_keys = list(dict.fromkeys(
+        entity.strip().lower() for entity in entities if entity and entity.strip()
+    ))
+    if norm_keys:
+        norm_query = f"""
+        MATCH (n:Entity)
+        WHERE coalesce(n.graph_id, 'builtin-malware') = $graph_id
+          AND n.norm_name IN $keys
+        WITH DISTINCT n
+        MATCH {_incident_pattern(expand)}
+        WHERE coalesce(m.graph_id, 'builtin-malware') = $graph_id
+        WITH DISTINCT r
+        RETURN {_TRIPLE_PROJECTION}
+        LIMIT $limit
+        """
+        records = _run(
+            norm_query,
+            keys=norm_keys,
+            limit=limit,
+            graph_id=graph_id,
+        )
+        if records:
+            return [_to_triple(rec) for rec in records]
+
+    # 中文层节点的 norm_name 是英文标准化名，无法由展示名直接还原，
+    # 因此保留 name 回退路径。
     query = f"""
     MATCH {_incident_pattern(expand)}
     WHERE coalesce(n.graph_id, 'builtin-malware') = $graph_id
@@ -490,31 +550,40 @@ def fetch_triples_by_terms(
     if not terms:
         return []
 
+    # 先用带 :Entity 标签的节点扫描做候选筛选，再展开候选节点的关系。
+    #
+    # 旧实现先 MATCH 所有关系再过滤节点名，执行计划会扫描 170 万节点和 360 万
+    # 关系；一句“什么是恶意软件”实测需要约 74 秒，前端 30 秒就超时。
+    # 改成节点优先后，候选集被限制在几十个节点，查询会立即返回。
+    #
     # 注意：关键词一律通过参数传递（$terms），不拼进语句，避免 Cypher 注入。
-    # 打分用 startNode/endNode 而不是 n/m —— 因为 (n)-[r]-(m) 对同一条关系会产出
-    # 两个方向的记录，若用 n/m 打分会在 DISTINCT 后留下重复的三元组。
+    entity_limit = min(max(limit * 4, 40), 200)
     query = f"""
-    MATCH {_incident_pattern(expand)}
+    MATCH (n:Entity)
     WHERE coalesce(n.graph_id, 'builtin-malware') = $graph_id
-      AND coalesce(m.graph_id, 'builtin-malware') = $graph_id
+      AND n.name IS NOT NULL
+      AND NOT (n:Solution OR n:Behavior OR n:Description
+               OR n:DateValue OR n:CountValue)
+      AND NOT coalesce(n.node_type, '') IN $text_types
       AND any(t IN $terms WHERE
-              toLower(toString(coalesce(n.name, ''))) CONTAINS toLower(t)
-           OR toLower(toString(coalesce(m.name, ''))) CONTAINS toLower(t))
+              toLower(toString(n.name)) CONTAINS toLower(t))
+    WITH n
+    LIMIT $entity_limit
+    MATCH {_incident_pattern(expand)}
+    WHERE coalesce(m.graph_id, 'builtin-malware') = $graph_id
     WITH DISTINCT r
-    WITH r, size([t IN $terms WHERE
-                    toLower(toString(coalesce(startNode(r).name, ''))) CONTAINS toLower(t)
-                 OR toLower(toString(coalesce(endNode(r).name, ''))) CONTAINS toLower(t)]) AS score
-    RETURN {_TRIPLE_PROJECTION}, score
-    ORDER BY score DESC
+    RETURN {_TRIPLE_PROJECTION}
     LIMIT $limit
     """
-    records = _run(query, terms=terms, limit=limit, graph_id=graph_id)
-    triples = []
-    for rec in records:
-        triple = _to_triple(rec)
-        triple["score"] = rec.get("score", 0)
-        triples.append(triple)
-    return triples
+    records = _run(
+        query,
+        terms=terms,
+        limit=limit,
+        entity_limit=entity_limit,
+        graph_id=graph_id,
+        text_types=["Solution", "Behavior", "Description", "DateValue", "CountValue"],
+    )
+    return [_to_triple(rec) for rec in records]
 
 
 def _to_triple(record) -> Dict[str, Any]:

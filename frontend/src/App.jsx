@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { clearSession, getCurrentUser, getToken } from "./api";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
@@ -17,8 +18,10 @@ import AdminCustomerManagement from "./pages/AdminCustomerManagement";
 
 // 简单的受保护路由组件
 const ProtectedRoute = ({ children }) => {
-  const token = localStorage.getItem("token");
-  if (!token) {
+  const token = getToken();
+  const user = getCurrentUser();
+  if (!token || !user) {
+    clearSession();
     return <Navigate to="/login" replace />;
   }
   return children;

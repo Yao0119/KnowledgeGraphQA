@@ -1,7 +1,7 @@
 <view class="page virus-page">
   <view class="virus-header safe-top"><view><text class="eyebrow">MALWARE SCAN / 04</text><text class="virus-title">病毒检测</text></view><text class="virus-mode">CLAMAV / API</text></view>
   <view class="section virus-content">
-    <view class="upload-card card"><view class="upload-symbol">↑</view><text class="upload-title">提交样本文件</text><text class="upload-desc">选择文件后开始检测。当前后端未接入时使用演示报告。</text><button class="outline-btn" bindtap="chooseFile">{{fileName ? '重新选择文件' : '选择文件'}}</button><text wx:if="{{fileName}}" class="file-name">{{fileName}}</text></view>
+    <view class="upload-card card"><view class="upload-symbol">↑</view><text class="upload-title">提交样本文件</text><text class="upload-desc">选择文件后由 ClamAV 服务进行扫描；扫描服务未启动时会返回明确提示。</text><button class="outline-btn" bindtap="chooseFile">{{fileName ? '重新选择文件' : '选择文件'}}</button><text wx:if="{{fileName}}" class="file-name">{{fileName}}</text></view>
     <view class="scan-actions"><button class="primary-btn" bindtap="startScan" loading="{{scanning}}">{{scanning ? '正在分析' : '开始检测'}}</button></view>
     <view class="section-title"><text>检测流程</text><text>四项检查</text></view>
     <view class="check-list card"><view wx:for="{{checks}}" wx:key="icon" class="check-row"><view class="check-index">{{item.icon}}</view><view class="check-copy"><text>{{item.label}}</text><text>{{item.detail}}</text></view><text class="check-status">待执行</text></view></view>

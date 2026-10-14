@@ -24,7 +24,6 @@ import {
   Modal,
   Select,
   Space,
-  Tag,
   Typography,
   message,
 } from "antd";
@@ -161,10 +160,24 @@ export default function LLMSettingsModal({ open, onClose, onSaved }) {
   // 测试连接
   // -------------------------
   const handleTest = async () => {
+    let values;
+    try {
+      values = await form.validateFields();
+    } catch {
+      return;
+    }
+
+    const payload = {};
+    // 测试使用表单里的临时值，不要求先保存；留空时后端会使用已保存配置。
+    if (values.api_key && values.api_key.trim()) payload.api_key = values.api_key.trim();
+    if (values.provider) payload.provider = values.provider;
+    if (values.model && values.model.trim()) payload.model = values.model.trim();
+    if (values.base_url && values.base_url.trim()) payload.base_url = values.base_url.trim();
+
     setTesting(true);
     setTestResult(null);
     try {
-      const res = await api.post("/api/settings/llm/test");
+      const res = await api.post("/api/settings/llm/test", payload);
       setTestResult(res.data?.data ?? null);
     } catch (err) {
       setTestResult({
@@ -188,7 +201,13 @@ export default function LLMSettingsModal({ open, onClose, onSaved }) {
       onCancel={onClose}
       width={640}
       footer={[
-        <Button key="test" icon={<ThunderboltOutlined />} onClick={handleTest} loading={testing} disabled={forbidden}>
+        <Button
+          key="test"
+          icon={<ThunderboltOutlined />}
+          onClick={handleTest}
+          loading={testing}
+          disabled={loading || forbidden}
+        >
           测试连接
         </Button>,
         <Button key="close" onClick={onClose}>
@@ -200,7 +219,7 @@ export default function LLMSettingsModal({ open, onClose, onSaved }) {
           icon={<SaveOutlined />}
           onClick={handleSave}
           loading={saving}
-          disabled={forbidden}
+          disabled={loading || forbidden}
         >
           保存并生效
         </Button>,

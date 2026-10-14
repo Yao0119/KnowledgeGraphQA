@@ -1,10 +1,18 @@
 const { request, mock } = require("../../utils/api");
 
+function normalizeSources(sources) {
+  return (sources || []).map((item) => ({
+    source: item.source && item.source.name ? item.source.name : item.source,
+    relation: item.relation,
+    target: item.target && item.target.name ? item.target.name : item.target,
+  }));
+}
+
 Page({
   data: {
     question: "",
     messages: [],
-    suggestions: ["Emotet 的运行环境是什么？", "WannaCry 如何传播？", "什么是凭据窃取？"],
+    suggestions: ["Virus/MSExcel.Ostrich 的病毒行为是什么？", "RiskWare/MacOS.Apfell 有哪些关联信息？", "Trojan/Python.Pupy[Backdoor] 是什么类型？"],
     loading: false,
     expanded: {},
     canSend: false,
@@ -34,7 +42,7 @@ Page({
     try {
       const res = await request({ path: "/api/qa/ask", method: "POST", data: { question, graph_id: "builtin-malware" } });
       const payload = res.data || res;
-      const botMessage = { role: "bot", content: payload.answer || "暂无回答", sources: payload.sources || mock.triples.slice(0, 2), retrieval: payload.retrieval, time: this.formatTime(new Date()) };
+      const botMessage = { role: "bot", content: payload.answer || "暂无回答", sources: normalizeSources(payload.sources), retrieval: payload.retrieval, time: this.formatTime(new Date()) };
       const messages = this.data.messages.concat(botMessage);
       this.setData({ messages, loading: false });
       this.saveHistory(messages);

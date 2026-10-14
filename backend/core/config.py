@@ -32,7 +32,13 @@ try:
     from dotenv import load_dotenv
 
     _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    for _env_file in (os.path.join(_ROOT, ".env"), os.path.join(_ROOT, "backend", ".env")):
+    _env_files = [os.path.join(_ROOT, ".env"), os.path.join(_ROOT, "backend", ".env")]
+    _app_env_file = os.getenv("APP_ENV_FILE")
+    if _app_env_file:
+        if not os.path.isabs(_app_env_file):
+            _app_env_file = os.path.join(_ROOT, _app_env_file)
+        _env_files.append(_app_env_file)
+    for _env_file in _env_files:
         if os.path.exists(_env_file):
             load_dotenv(_env_file, override=False)
 except ImportError:

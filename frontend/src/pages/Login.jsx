@@ -3,7 +3,13 @@ import { Input, Button, message, Checkbox, Row, Col } from "antd";
 import { UserOutlined, LockOutlined, RightOutlined } from "@ant-design/icons";
 import { useNavigate, Link } from "react-router-dom";
 
-import api, { setSession, errorMessage } from "../api";
+import api, {
+  clearSession,
+  errorMessage,
+  getCurrentUser,
+  getToken,
+  setSession,
+} from "../api";
 
 export default function Login() {
   const [username, setUsername] = useState("");
@@ -11,11 +17,14 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  // 如果已经登录，直接跳转到首页
+  // 只有 token 和 user 同时有效时才跳转；半损坏会话先清理，避免与 Dashboard 循环跳转。
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      navigate("/dashboard/graph");
+    const token = getToken();
+    const user = getCurrentUser();
+    if (token && user) {
+      navigate("/dashboard/graph", { replace: true });
+    } else if (token || user || localStorage.getItem("user")) {
+      clearSession();
     }
   }, [navigate]);
 

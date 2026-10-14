@@ -25,10 +25,10 @@ import requests
 
 from ..core import config
 from .llm import (
-    create_llm_client,
     get_llm_info,
     reset_llm_client,
 )
+from .local_llm import LocalLLMClient
 
 # ========================================
 # 允许在设置页里修改的配置项
@@ -58,11 +58,18 @@ def _project_root() -> str:
 
 def _env_file_path() -> str:
     """
-    设置页写回的 .env 路径（仓库根目录）
+    设置页写回的 .env 路径。
+
+    默认仍是仓库根目录；容器部署可用 APP_ENV_FILE 指向挂载的持久化目录。
 
     Returns:
         str: .env 文件的绝对路径
     """
+    configured = os.getenv("APP_ENV_FILE")
+    if configured:
+        if os.path.isabs(configured):
+            return configured
+        return os.path.join(_project_root(), configured)
     return os.path.join(_project_root(), ".env")
 
 
@@ -157,10 +164,15 @@ def _write_env_updates(path: str, updates: Dict[str, str]) -> None:
         for key, value in remaining.items():
             out.append(f"{key}={value}")
 
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     tmp = f"{path}.tmp"
     with open(tmp, "w", encoding="utf-8") as fh:
         fh.write("\n".join(out) + "\n")
     os.replace(tmp, path)
+    try:
+        os.chmod(path, 0o600)
+    except OSError:
+        pass
 
 
 # ========================================
@@ -276,9 +288,17 @@ def update_llm_settings(
 # 连通性测试
 # ========================================
 
-def test_llm_settings() -> Dict[str, Any]:
+def test_llm_settings(
+    api_key: Optional[str] = None,
+    provider: Optional[str] = None,
+    model: Optional[str] = None,
+    base_url: Optional[str] = None,
+) -> Dict[str, Any]:
     """
-    用当前配置探测 LLM 是否真的可用
+    探测 LLM 是否真的可用。
+
+    可传入表单中的临时值，探测不会修改当前配置，也不会写入 .env。这样管理员
+    输入新 Key 后可以直接点“测试连接”，无需先保存一个尚未验证的 Key。
 
     DeepSeek 走 `GET /models`：这是标准 OpenAI 兼容端点，**不消耗 token**，
     且能直接区分"Key 无效(401)"与"网络不通"，比发一条对话更省更准。
@@ -287,63 +307,143 @@ def test_llm_settings() -> Dict[str, Any]:
     Returns:
         dict: {"ok": bool, "provider": str, "model": str, "message": str}
     """
-    provider = config.LLM_PROVIDER
-    client = create_llm_client()
-
-    if not client.is_available():
+    normalized_provider = (provider or config.LLM_PROVIDER or "deepseek").strip().lower()
+    if normalized_provider not in SUPPORTED_PROVIDERS:
         return {
             "ok": False,
-            "provider": provider,
-            "model": getattr(client, "model_name", config.DEEPSEEK_MODEL),
-            "message": getattr(client, "last_error", None) or "客户端当前不可用",
+            "provider": normalized_provider,
+            "model": model or "",
+            "message": (
+                f"provider 只支持 {' / '.join(SUPPORTED_PROVIDERS)}，"
+                f"收到 {normalized_provider!r}"
+            ),
         }
 
-    if provider == "ollama":
-        # Ollama 本身就是本地服务，is_available() 已经做过探测
+    if normalized_provider == "ollama":
+        probe_model = (model if model is not None else config.OLLAMA_MODEL or "").strip()
+        probe_base_url = (
+            base_url if base_url is not None else config.OLLAMA_BASE_URL or ""
+        ).strip().rstrip("/")
+        if not probe_model or not probe_base_url:
+            return {
+                "ok": False,
+                "provider": normalized_provider,
+                "model": probe_model,
+                "message": "Ollama 模型名和 API 基址不能为空",
+            }
+
+        client = LocalLLMClient(base_url=probe_base_url, model_name=probe_model)
+        if not client.is_available():
+            return {
+                "ok": False,
+                "provider": normalized_provider,
+                "model": probe_model,
+                "message": f"无法连接本地 Ollama 服务（{probe_base_url}）",
+            }
+
+        names = client.get_available_models()
+        if names and probe_model not in names:
+            return {
+                "ok": False,
+                "provider": normalized_provider,
+                "model": probe_model,
+                "message": (
+                    f"Ollama 服务可用，但模型 {probe_model} 尚未安装"
+                    f"（可用：{'、'.join(names[:5])}）"
+                ),
+            }
         return {
             "ok": True,
-            "provider": provider,
-            "model": getattr(client, "model_name", config.OLLAMA_MODEL),
+            "provider": normalized_provider,
+            "model": probe_model,
             "message": "本地 Ollama 服务可用",
         }
 
-    url = f"{config.DEEPSEEK_BASE_URL}/models"
+    probe_api_key = (
+        config.DEEPSEEK_API_KEY if api_key is None else api_key or ""
+    ).strip()
+    probe_model = (
+        config.DEEPSEEK_MODEL if model is None else model or ""
+    ).strip()
+    probe_base_url = (
+        config.DEEPSEEK_BASE_URL if base_url is None else base_url or ""
+    ).strip().rstrip("/")
+
+    if not probe_api_key:
+        return {
+            "ok": False,
+            "provider": normalized_provider,
+            "model": probe_model or config.DEEPSEEK_MODEL,
+            "message": "未配置 DEEPSEEK_API_KEY",
+        }
+    if not probe_model:
+        return {
+            "ok": False,
+            "provider": normalized_provider,
+            "model": "",
+            "message": "模型名不能为空",
+        }
+    if not probe_base_url:
+        return {
+            "ok": False,
+            "provider": normalized_provider,
+            "model": probe_model,
+            "message": "API 基址不能为空",
+        }
+
+    url = f"{probe_base_url}/models"
     try:
         response = requests.get(
             url,
             headers={
-                "Authorization": f"Bearer {config.DEEPSEEK_API_KEY}",
+                "Authorization": f"Bearer {probe_api_key}",
                 "Content-Type": "application/json",
             },
             timeout=15,
         )
     except requests.exceptions.Timeout:
         return {
-            "ok": False, "provider": provider, "model": config.DEEPSEEK_MODEL,
+            "ok": False, "provider": normalized_provider, "model": probe_model,
             "message": "请求 DeepSeek 超时（15s），请检查网络或代理设置",
         }
     except requests.exceptions.ConnectionError as exc:
         return {
-            "ok": False, "provider": provider, "model": config.DEEPSEEK_MODEL,
-            "message": f"无法连接 {config.DEEPSEEK_BASE_URL}：{exc}",
+            "ok": False, "provider": normalized_provider, "model": probe_model,
+            "message": f"无法连接 {probe_base_url}：{exc}",
         }
     except Exception as exc:  # noqa: BLE001 - 任何异常都要变成可读信息
         return {
-            "ok": False, "provider": provider, "model": config.DEEPSEEK_MODEL,
+            "ok": False, "provider": normalized_provider, "model": probe_model,
             "message": f"探测失败：{exc}",
         }
 
     if response.status_code == 200:
         try:
-            names = [m.get("id") for m in response.json().get("data", []) if m.get("id")]
+            names = [
+                str(item.get("id"))
+                for item in response.json().get("data", [])
+                if isinstance(item, dict) and item.get("id")
+            ]
         except Exception:  # noqa: BLE001
             names = []
+
+        if names and probe_model not in names:
+            preview = "、".join(names[:5])
+            return {
+                "ok": False,
+                "provider": normalized_provider,
+                "model": probe_model,
+                "message": (
+                    f"API Key 有效，但模型 {probe_model} 不在服务端模型列表中"
+                    f"（可用：{preview}）"
+                ),
+            }
         return {
             "ok": True,
-            "provider": provider,
-            "model": config.DEEPSEEK_MODEL,
+            "provider": normalized_provider,
+            "model": probe_model,
             "message": f"API Key 有效，服务端可用模型 {len(names)} 个"
-                       + (f"（含 {config.DEEPSEEK_MODEL}）" if config.DEEPSEEK_MODEL in names else ""),
+                       + (f"（含 {probe_model}）" if probe_model in names else ""),
         }
 
     # 401 / 402 / 403 等：把状态码翻译成人话
@@ -356,7 +456,7 @@ def test_llm_settings() -> Dict[str, Any]:
     }
     return {
         "ok": False,
-        "provider": provider,
-        "model": config.DEEPSEEK_MODEL,
+        "provider": normalized_provider,
+        "model": probe_model,
         "message": f"HTTP {response.status_code}：{hints.get(response.status_code, '请求被拒绝')}",
     }

@@ -1,5 +1,6 @@
 const app = getApp();
-const USE_MOCK = true;
+const USE_MOCK = false;
+const API_BASE = (app && app.globalData && app.globalData.apiBase) || "http://43.142.37.157";
 const wait = (value, delay = 260) => new Promise((resolve) => setTimeout(() => resolve(value), delay));
 const mock = {
   summary: { nodes: 1704218, relationships: 2438096, status: "healthy" },
@@ -50,6 +51,15 @@ const mock = {
     { question: "WannaCry 如何传播？", answer: "WannaCry 主要通过 SMB 漏洞进行横向传播，相关节点还连接到勒索软件和 Windows 环境。", sourceCount: 2 },
   ],
 };
+function getToken() {
+  return wx.getStorageSync("kg_token") || "";
+}
+
+function authHeader() {
+  const token = getToken();
+  return token ? { Authorization: "Bearer " + token } : {};
+}
+
 function request({ path, method = "GET", data = {} }) {
   if (USE_MOCK || (app && app.globalData && app.globalData.useMock)) {
     if (path === "/api/graphs") return wait({ success: true, data: mock.graphs });
@@ -67,14 +77,55 @@ function request({ path, method = "GET", data = {} }) {
   }
   return new Promise((resolve, reject) => {
     wx.request({
-      url: app.globalData.apiBase + path,
+      url: API_BASE + path,
       method,
       data,
-      header: { "content-type": "application/json" },
-      success: resolve,
+      header: Object.assign({ "content-type": "application/json" }, authHeader()),
+      success: (response) => {
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          resolve(response.data);
+          return;
+        }
+        const payload = response.data || {};
+        reject({
+          statusCode: response.statusCode,
+          data: payload,
+          message: payload.detail || payload.message || "请求失败",
+        });
+      },
       fail: reject,
     });
   });
+}
+
+function login({ username, password }) {
+  return request({
+    path: "/api/auth/login",
+    method: "POST",
+    data: { username, password },
+  }).then((payload) => {
+    const token = payload.access_token || "";
+    const user = payload.user || {};
+    const displayName = user.username || username;
+    const normalizedUser = {
+      id: user.id,
+      name: displayName,
+      role: user.role === "admin" ? "管理员" : "客户",
+      initials: displayName.slice(0, 1).toUpperCase() || "用",
+    };
+    wx.setStorageSync("kg_token", token);
+    wx.setStorageSync("kg_user", normalizedUser);
+    if (app && app.globalData) {
+      app.globalData.token = token;
+      app.globalData.user = normalizedUser;
+    }
+    return payload;
+  });
+}
+
+function logout() {
+  wx.removeStorageSync("kg_token");
+  if (app && app.globalData) app.globalData.token = "";
 }
 
 function uploadBuild({ name, description, language_mode, filePath, fileName }) {
@@ -110,17 +161,50 @@ function uploadBuild({ name, description, language_mode, filePath, fileName }) {
   }
   return new Promise((resolve, reject) => {
     wx.uploadFile({
-      url: app.globalData.apiBase + "/api/graphs/build",
+      url: API_BASE + "/api/graphs/build",
       filePath,
       name: "file",
       formData: { name, description: description || "", language_mode: language_mode || "dual" },
-      header: {},
+      header: authHeader(),
       success: (res) => {
-        try { resolve(JSON.parse(res.data)); } catch (error) { reject(error); }
+        try {
+          const payload = JSON.parse(res.data);
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            resolve(payload);
+            return;
+          }
+          reject({ statusCode: res.statusCode, data: payload, message: payload.detail || payload.message || "上传失败" });
+        } catch (error) {
+          reject(error);
+        }
       },
       fail: reject,
     });
   });
 }
 
-module.exports = { request, uploadBuild, mock };
+function uploadScan({ filePath }) {
+  return new Promise((resolve, reject) => {
+    wx.uploadFile({
+      url: API_BASE + "/api/virus-detection/upload",
+      filePath,
+      name: "file",
+      header: authHeader(),
+      success: (res) => {
+        try {
+          const payload = JSON.parse(res.data);
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            resolve(payload);
+            return;
+          }
+          reject({ statusCode: res.statusCode, data: payload, message: payload.detail || payload.message || "检测失败" });
+        } catch (error) {
+          reject(error);
+        }
+      },
+      fail: reject,
+    });
+  });
+}
+
+module.exports = { request, uploadBuild, uploadScan, login, logout, getToken, mock };

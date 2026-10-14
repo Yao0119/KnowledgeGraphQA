@@ -56,6 +56,18 @@ export function isAdmin() {
 }
 
 /**
+ * 判断本地是否保存了一套完整且格式正确的会话。
+ *
+ * 只检查 token 会在历史脏数据下造成死循环：
+ * 登录页看见 token 就跳 dashboard，而 dashboard 发现 user 不存在又跳回登录页。
+ *
+ * @returns {boolean}
+ */
+export function hasValidSession() {
+  return Boolean(getToken() && getCurrentUser());
+}
+
+/**
  * 写入登录会话
  * @param {{token: string, user: object}} session 登录接口返回的令牌与用户对象
  */

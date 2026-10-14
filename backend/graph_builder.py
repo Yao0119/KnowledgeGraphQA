@@ -1,15 +1,22 @@
-"""结构化 TXT/Markdown 建图任务。
+"""TXT/Markdown 建图任务。
 
-第一版故意采用确定性的轻量解析器，不依赖 LLM：用户按“实体 / 类型 / 关系”
-格式提供文本后，后台任务负责解析、写入 Neo4j，并更新 MySQL 任务进度。
+文本建图采用“DeepSeek JSON 抽取 + 本地校验 + Neo4j 写入”的流程：
+
+1. 将文本按段落切成较小的上下文块；
+2. 调用现有 LLM 客户端抽取实体、实体类型和关系；
+3. 只接受 JSON，规范化字段并过滤没有实体端点的关系；
+4. 对节点和三元组去重后，复用现有 Neo4j 写入逻辑。
+
+确定性解析器仍保留在模块中，便于兼容旧调用和测试；上传建图任务默认走 LLM 抽取。
 """
 
 from __future__ import annotations
 
+import json
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Callable, Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from .core.models import (
     GraphBuildJob,
@@ -19,6 +26,7 @@ from .core.models import (
     SessionLocal,
 )
 from .functions.retrieval import invalidate_entity_cache
+from .utils.llm import get_llm_client
 from .utils.neo4j_utils import get_graph_summary, get_neo4j_driver
 
 
@@ -27,6 +35,21 @@ _TYPE_RE = re.compile(r"^(?:类型|type)\s*[:：]\s*(.+)$", re.IGNORECASE)
 _RELATION_RE = re.compile(r"^(?:关系|relation)\s*[:：]\s*(.+)$", re.IGNORECASE)
 _ARROW_RE = re.compile(r"^(.*?)\s*[-—]\s*(.*?)\s*(?:->|→)\s*(.+?)$")
 _SHORT_ARROW_RE = re.compile(r"^(.*?)\s*(?:->|→)\s*(.+?)$")
+
+# LLM 抽取时优先使用这些领域类型/关系；如果用户文本出现新概念，允许模型返回
+# 简短的自定义类型或关系，避免把非恶意软件文档中的有效知识全部丢掉。
+_ENTITY_TYPE_GUIDE = (
+    "Malware（恶意软件）、Family（家族）、Platform（运行环境）、"
+    "MalwareType（威胁类型）、Category（威胁行为分类）、Alias（别名）、"
+    "Behavior（行为）、Solution（解决方案）、Vulnerability（漏洞）、"
+    "Organization（组织）、Product（产品）、Technology（技术）、Entity（其他实体）"
+)
+_RELATION_GUIDE = (
+    "病毒家族、运行环境、威胁类型、威胁行为、病毒行为、解决方案、"
+    "其他厂商命名、利用、影响、使用、属于、包含、依赖、版本、发现、关联"
+)
+_LLM_CHUNK_CHARS = 5000
+_LLM_EXTRACTION_MAX_TOKENS = 2048
 
 
 def _clean(value: str, max_length: int = 240) -> str:
@@ -40,6 +63,204 @@ def _node_type(value: str) -> str:
 
 def _norm_name(value: str) -> str:
     return re.sub(r"\s+", " ", _clean(value, 240)).casefold()
+
+
+def _split_text_for_extraction(text: str, max_chars: int = _LLM_CHUNK_CHARS) -> List[str]:
+    """按段落切分文本，避免一次请求过长，也尽量不切断语义。"""
+    paragraphs = [p.strip() for p in re.split(r"\n\s*\n+", text or "") if p.strip()]
+    if not paragraphs:
+        return []
+
+    chunks: List[str] = []
+    current: List[str] = []
+    current_len = 0
+
+    def flush() -> None:
+        nonlocal current, current_len
+        if current:
+            chunks.append("\n\n".join(current))
+            current = []
+            current_len = 0
+
+    for paragraph in paragraphs:
+        # 单段过长时按字符切分，避免请求超过上下文窗口。
+        if len(paragraph) > max_chars:
+            flush()
+            for start in range(0, len(paragraph), max_chars):
+                part = paragraph[start:start + max_chars].strip()
+                if part:
+                    chunks.append(part)
+            continue
+
+        extra_len = len(paragraph) + (2 if current else 0)
+        if current and current_len + extra_len > max_chars:
+            flush()
+        current.append(paragraph)
+        current_len += len(paragraph) + (2 if len(current) > 1 else 0)
+
+    flush()
+    return chunks
+
+
+def _extract_json_payload(content: str) -> Dict[str, Any]:
+    """从模型回答中提取 JSON，兼容 Markdown 代码块和少量前后解释文字。"""
+    raw = (content or "").strip()
+    if not raw:
+        raise ValueError("LLM 返回为空")
+
+    candidates = [raw]
+    fenced = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw, re.IGNORECASE | re.DOTALL)
+    if fenced:
+        candidates.insert(0, fenced.group(1))
+
+    start = raw.find("{")
+    end = raw.rfind("}")
+    if start >= 0 and end > start:
+        candidates.append(raw[start:end + 1])
+
+    last_error: Optional[Exception] = None
+    for candidate in candidates:
+        try:
+            payload = json.loads(candidate)
+            if isinstance(payload, list):
+                payload = {"entities": payload, "relations": []}
+            if isinstance(payload, dict):
+                return payload
+        except (TypeError, json.JSONDecodeError) as exc:
+            last_error = exc
+
+    raise ValueError(f"LLM 未返回合法 JSON: {last_error or '未知格式'}")
+
+
+def _first_value(item: Dict[str, Any], *keys: str) -> Any:
+    for key in keys:
+        value = item.get(key)
+        if value is not None:
+            return value
+    return None
+
+
+def _normalize_extracted_graph(
+    raw_entities: Any,
+    raw_relations: Any,
+) -> Tuple[List[Dict[str, str]], List[Dict[str, str]]]:
+    """规范化模型输出，并过滤关系端点不存在的关系。"""
+    nodes_by_norm: Dict[str, Dict[str, str]] = {}
+
+    if not isinstance(raw_entities, list):
+        raw_entities = []
+    for item in raw_entities:
+        if not isinstance(item, dict):
+            continue
+        name = _clean(str(_first_value(item, "name", "entity", "text") or ""))
+        if not name:
+            continue
+        node_type = _node_type(str(_first_value(item, "type", "entity_type", "node_type") or "Entity"))
+        norm = _norm_name(name)
+        if not norm:
+            continue
+
+        existing = nodes_by_norm.get(norm)
+        if existing is None or existing["node_type"] == "Entity":
+            nodes_by_norm[norm] = {"name": name, "node_type": node_type}
+
+    raw_relations = raw_relations if isinstance(raw_relations, list) else []
+    relationships_by_key: Dict[Tuple[str, str, str], Dict[str, str]] = {}
+    for item in raw_relations:
+        if not isinstance(item, dict):
+            continue
+        source = _clean(str(_first_value(item, "source", "subject", "from") or ""))
+        target = _clean(str(_first_value(item, "target", "object", "to") or ""))
+        relation = _clean(str(_first_value(item, "relation", "predicate", "type") or ""), 120)
+        if not source or not target or not relation:
+            continue
+
+        source_node = nodes_by_norm.get(_norm_name(source))
+        target_node = nodes_by_norm.get(_norm_name(target))
+        # 模型可能凭空输出一个关系端点；只有两端都在实体集合中才允许入图。
+        if source_node is None or target_node is None:
+            continue
+
+        key = (
+            _norm_name(source_node["name"]),
+            _norm_name(relation),
+            _norm_name(target_node["name"]),
+        )
+        relationships_by_key[key] = {
+            "source": source_node["name"],
+            "relation": relation,
+            "target": target_node["name"],
+        }
+
+    return list(nodes_by_norm.values()), list(relationships_by_key.values())
+
+
+def _build_extraction_prompt(chunk: str) -> str:
+    return f"""你是知识图谱信息抽取器。请只根据【原文】抽取明确表达的实体和关系，不要猜测，不要补充原文没有的信息。
+
+【实体类型参考】
+{_ENTITY_TYPE_GUIDE}
+
+【关系类型参考】
+{_RELATION_GUIDE}
+
+【输出要求】
+1. 只输出一个合法 JSON 对象，不要 Markdown 代码块，不要解释文字；
+2. JSON 必须严格使用以下结构：
+{{
+  "entities": [{{"name": "实体名称", "type": "实体类型"}}],
+  "relations": [{{"source": "源实体名称", "relation": "关系名称", "target": "目标实体名称"}}]
+}};
+3. 关系的 source 和 target 必须逐字对应 entities 中的 name；
+4. 没有明确实体或关系时返回空数组；
+5. 实体名称保留原文中的核心名称，不要把整段句子当成实体；
+6. type 和 relation 使用简短名称，优先使用参考列表，参考列表没有时再使用原文中的简短类型/关系。
+
+【原文】
+{chunk}
+"""
+
+
+def extract_graph_with_llm(
+    text: str,
+    progress_callback: Optional[Callable[[int, int], None]] = None,
+) -> Tuple[List[Dict[str, str]], List[Dict[str, str]]]:
+    """使用当前配置的 LLM 抽取自然语言中的实体、类型和关系。"""
+    chunks = _split_text_for_extraction(text)
+    if not chunks:
+        return [], []
+
+    client = get_llm_client()
+    if not client.is_available():
+        reason = getattr(client, "last_error", None) or "LLM 后端不可用"
+        raise RuntimeError(f"自然语言建图需要可用的 LLM：{reason}")
+
+    all_entities: List[Dict[str, Any]] = []
+    all_relations: List[Dict[str, Any]] = []
+    for index, chunk in enumerate(chunks, start=1):
+        response = client.chat(
+            messages=[{"role": "user", "content": _build_extraction_prompt(chunk)}],
+            temperature=0.0,
+            max_tokens=_LLM_EXTRACTION_MAX_TOKENS,
+        )
+        content = (response.get("message", {}).get("content") or "").strip()
+        if not content:
+            raise RuntimeError(f"第 {index}/{len(chunks)} 个文本块的 LLM 返回为空")
+
+        payload = _extract_json_payload(content)
+        entities = payload.get("entities", payload.get("nodes", []))
+        relations = payload.get("relations", payload.get("relationships", payload.get("edges", [])))
+        if isinstance(entities, list):
+            all_entities.extend(entities)
+        if isinstance(relations, list):
+            all_relations.extend(relations)
+        if progress_callback:
+            progress_callback(index, len(chunks))
+
+    nodes, relationships = _normalize_extracted_graph(all_entities, all_relations)
+    if not nodes:
+        raise ValueError("LLM 未从文本中抽取到实体，请检查文本内容或 DeepSeek 配置")
+    return nodes, relationships
 
 
 def parse_structured_text(text: str) -> Tuple[List[Dict[str, str]], List[Dict[str, str]]]:
@@ -244,9 +465,19 @@ def build_graph_job(job_id: int) -> None:
         db.commit()
 
         text = Path(job.source_path).read_text(encoding="utf-8-sig")
-        nodes, relationships = parse_structured_text(text)
+
+        def on_extraction_progress(done: int, total: int) -> None:
+            progress = 10 + int(done / max(total, 1) * 20)
+            _update_job(
+                job_id,
+                status=GraphBuildStatus.EXTRACTING,
+                progress=min(progress, 30),
+                current_stage=f"LLM 抽取文本（{done}/{total}）",
+            )
+
+        nodes, relationships = extract_graph_with_llm(text, on_extraction_progress)
         if not nodes:
-            raise ValueError("没有解析到实体。请使用“实体：名称 / 类型：类型”的格式。")
+            raise ValueError("没有从文本中抽取到实体")
 
         _update_job(
             job_id,

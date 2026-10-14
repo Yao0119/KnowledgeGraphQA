@@ -6,7 +6,7 @@
 from .agent import answer_question_with_graph as agent_answer_question_with_graph
 
 
-def answer_question_with_graph(question: str) -> dict:
+def answer_question_with_graph(question: str, graph_id: str = "builtin-malware") -> dict:
     """
     使用知识图谱进行问答
     结合Neo4j知识图谱和LLM模型进行智能问答
@@ -23,7 +23,7 @@ def answer_question_with_graph(question: str) -> dict:
         >>> print(result['used_triples'])
     """
     try:
-        result = agent_answer_question_with_graph(question)
+        result = agent_answer_question_with_graph(question, graph_id=graph_id)
         return result
     except Exception as e:
         return {
