@@ -16,6 +16,10 @@
 .filter { padding: 14rpx 22rpx; border: 1rpx solid #dce5ea; border-radius: 40rpx; color: #7f8e9b; background: #fff; font-size: 23rpx; }
 .filter-active { border-color: #11d6c5; color: #0b8f85; background: #e5faf7; }
 .graph-map { position: relative; overflow: hidden; height: 390rpx; margin-top: 26rpx; background: #102235; }
+.graph-map-fullscreen { position: fixed; z-index: 50; top: 0; right: 0; bottom: 0; left: 0; width: 100vw; height: 100vh; margin: 0; border-radius: 0; }
+.fullscreen-action { position: absolute; z-index: 5; top: 24rpx; right: 24rpx; display: flex; align-items: center; justify-content: center; min-width: 100px; min-height: 44px; padding: 0 16px; border: 1rpx solid rgba(255,255,255,.2); border-radius: 30px; color: #fff; background: rgba(28,28,30,.84); font-size: 22rpx; line-height: 1; }
+.graph-map-fullscreen .fullscreen-action-exit { top: auto; right: 24rpx; right: calc(env(safe-area-inset-right) + 24px); bottom: 24px; bottom: calc(env(safe-area-inset-bottom) + 24px); z-index: 30; }
+.graph-map-fullscreen .map-caption { display: none; }
 .map-grid { position: absolute; inset: 0; opacity: .24; background-image: linear-gradient(rgba(133,161,177,.16) 1rpx, transparent 1rpx), linear-gradient(90deg, rgba(133,161,177,.16) 1rpx, transparent 1rpx); background-size: 42rpx 42rpx; }
 .orbit { position: absolute; border: 1rpx solid rgba(17,214,197,.25); border-radius: 50%; }
 .orbit-a { top: 56rpx; left: 140rpx; width: 320rpx; height: 220rpx; transform: rotate(18deg); }

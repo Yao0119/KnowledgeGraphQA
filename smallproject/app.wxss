@@ -6,7 +6,11 @@ page {
 }
 view, scroll-view, swiper, button, input, textarea, text { box-sizing: border-box; }
 button::after { border: 0; }
-.page { min-height: 100vh; padding-bottom: 150rpx; }
+.page {
+  min-height: 100vh;
+  padding-bottom: 150rpx;
+  padding-bottom: calc(136rpx + env(safe-area-inset-bottom));
+}
 /*
  * 自定义导航栏下，微信开发者工具部分机型不会正确返回
  * env(safe-area-inset-top)，导致页面标题绘制到系统状态栏下面。

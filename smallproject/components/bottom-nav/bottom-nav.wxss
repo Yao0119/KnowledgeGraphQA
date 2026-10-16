@@ -1,6 +1,21 @@
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
-.bottom-nav { position: fixed; z-index: 40; right: 0; bottom: 0; left: 0; display: flex; height: 112rpx; border-top: 1rpx solid rgba(0,0,0,.06); background: rgba(255,255,255,.94); box-shadow: 0 -8rpx 26rpx rgba(0,0,0,.06); }
-.bottom-item { display: flex; flex: 1; align-items: center; flex-direction: column; justify-content: center; min-width: 44px; color: #6e6e73; }
+.bottom-nav {
+  position: fixed;
+  z-index: 40;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  height: 112rpx;
+  height: calc(112rpx + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  border-top: 1rpx solid rgba(0,0,0,.06);
+  background: rgba(255,255,255,.96);
+  box-shadow: 0 -8rpx 26rpx rgba(0,0,0,.06);
+}
+.bottom-item { display: flex; flex: 1; align-items: center; flex-direction: column; justify-content: center; min-width: 0; min-height: 44px; color: #6e6e73; }
 .bottom-icon { display: flex; align-items: center; justify-content: center; width: 44rpx; height: 38rpx; color: #6e6e73; font-size: 35rpx; line-height: 38rpx; }
 .bottom-label { margin-top: 7rpx; font-size: 20rpx; line-height: 24rpx; }
 .bottom-item-active { color: #1c1c1e; }

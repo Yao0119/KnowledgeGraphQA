@@ -1,4 +1,7 @@
-.home-page { padding-bottom: 54rpx; }
+.home-page {
+  padding-bottom: 54rpx;
+  padding-bottom: calc(136rpx + env(safe-area-inset-bottom));
+}
 .home-topline { position: relative; z-index: 1; display: flex; align-items: flex-start; justify-content: flex-start; }
 .home-topline .avatar { order: -1; flex: none; margin: 4rpx 20rpx 0 0; }
 .home-title { margin-top: 5rpx; color: #f5f7fa; font-size: 42rpx; font-weight: 700; line-height: 1.08; letter-spacing: -1rpx; }
