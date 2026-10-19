@@ -4,10 +4,103 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- 移动端浏览器地址栏配色，与页面底色一致 -->
-    <meta name="theme-color" content="#F8FAFC" />
-    <meta name="color-scheme" content="light" />
+    <meta id="theme-color" name="theme-color" content="#F2F2F2" />
+    <meta name="color-scheme" content="light dark" />
     <meta name="description" content="恶意软件知识图谱问答与预测系统" />
+    <script>
+      (() => {
+        const root = document.documentElement;
+        let preferences = {};
+        let userId = "anonymous";
+
+        try {
+          const user = JSON.parse(localStorage.getItem("user") || "null");
+          if (user?.id) userId = user.id;
+          const raw = localStorage.getItem(`kg_preferences:${userId}`);
+          if (raw) preferences = JSON.parse(raw) || {};
+        } catch {
+          preferences = {};
+        }
+
+        const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)").matches;
+        const theme = preferences.theme === "system"
+          ? (prefersDark ? "dark" : "light")
+          : (preferences.theme || (prefersDark ? "dark" : "light"));
+
+        root.dataset.theme = theme;
+        root.dataset.themePreference = preferences.theme || "system";
+        root.dataset.fontScale = preferences.fontScale || "standard";
+        root.dataset.density = preferences.density || "comfortable";
+        root.dataset.reduceMotion = preferences.reduceMotion ? "true" : "false";
+        root.style.colorScheme = theme;
+
+        const themeColor = document.getElementById("theme-color");
+        const colorScheme = document.querySelector('meta[name="color-scheme"]');
+        if (themeColor) themeColor.content = theme === "dark" ? "#171717" : "#F2F2F2";
+        if (colorScheme) colorScheme.content = theme;
+      })();
+    </script>
+    <style>
+      html {
+        background: #f2f2f2;
+      }
+      html[data-theme="dark"] {
+        background: #171717;
+      }
+      html,
+      body,
+      #root {
+        min-height: 100%;
+      }
+      .boot-screen {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-content: center;
+        justify-items: center;
+        gap: 12px;
+        background: inherit;
+        color: #1c1c1e;
+        font-family: -apple-system, BlinkMacSystemFont, "PingFang SC",
+          "Microsoft YaHei", "Segoe UI", sans-serif;
+      }
+      html[data-theme="dark"] .boot-screen {
+        color: #f5f5f5;
+      }
+      .boot-spinner {
+        width: 28px;
+        height: 28px;
+        border: 2px solid rgba(28, 28, 30, 0.14);
+        border-top-color: #1c1c1e;
+        border-radius: 50%;
+        animation: boot-spin 720ms linear infinite;
+      }
+      html[data-theme="dark"] .boot-spinner {
+        border-color: rgba(255, 255, 255, 0.16);
+        border-top-color: #f5f5f5;
+      }
+      .boot-title {
+        font-size: 15px;
+        font-weight: 600;
+      }
+      .boot-status {
+        font-size: 12px;
+        opacity: 0.62;
+      }
+      @keyframes boot-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      html[data-reduce-motion="true"] .boot-spinner {
+        animation-duration: 1.8s;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .boot-spinner {
+          animation-duration: 1.8s;
+        }
+      }
+    </style>
     <!-- 内联 SVG 图标：原来没有 favicon，每次加载都会产生一条 404 -->
     <link
       rel="icon"
@@ -16,7 +109,13 @@
     <title>知识图谱安全分析平台</title>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="boot-screen" role="status" aria-live="polite">
+        <span class="boot-spinner" aria-hidden="true"></span>
+        <span class="boot-title">知识图谱安全分析平台</span>
+        <span class="boot-status">正在加载工作区</span>
+      </div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

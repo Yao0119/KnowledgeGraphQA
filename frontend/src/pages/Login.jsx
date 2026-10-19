@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { Input, Button, message, Checkbox, Row, Col } from "antd";
-import { UserOutlined, LockOutlined, RightOutlined } from "@ant-design/icons";
+import { Input, Button, message } from "antd";
+import { ArrowRightOutlined, LockOutlined } from "@ant-design/icons";
 import { useNavigate, Link } from "react-router-dom";
 
 import api, {
@@ -8,6 +8,7 @@ import api, {
   errorMessage,
   getCurrentUser,
   getToken,
+  setGuestMode,
   setSession,
 } from "../api";
 
@@ -55,6 +56,11 @@ export default function Login() {
 
   const handleKeyDown = (e) => {
     if (e.key === "Enter") handleLogin();
+  };
+
+  const handleGuestEnter = () => {
+    setGuestMode();
+    navigate("/dashboard/overview", { replace: true });
   };
 
   // 定义样式对象 (更加稳健的 iOS 风格)
@@ -137,6 +143,16 @@ export default function Login() {
       marginTop: "24px",
       boxShadow: "none",
     },
+    guestButton: {
+      height: "44px",
+      borderRadius: "var(--radius-lg)",
+      marginTop: "12px",
+      borderColor: "var(--c-border-strong)",
+      backgroundColor: "transparent",
+      color: "var(--c-fg)",
+      fontSize: "14px",
+      fontWeight: "600",
+    },
     footer: {
       marginTop: "24px",
       fontSize: "14px",
@@ -197,6 +213,15 @@ export default function Login() {
             style={styles.button}
           >
             登录
+          </Button>
+
+          <Button
+            block
+            icon={<ArrowRightOutlined aria-hidden="true" />}
+            onClick={handleGuestEnter}
+            style={styles.guestButton}
+          >
+            游客进入系统概览
           </Button>
 
           <div style={styles.footer}>

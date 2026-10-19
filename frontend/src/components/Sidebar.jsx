@@ -21,8 +21,6 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
 } from "@ant-design/icons";
-import { color } from "../theme";
-
 const SIDEBAR_WIDTH = 250;
 
 /** 菜单 key → 路由。用于菜单层的点击兜底（见下方 Menu 的 onClick） */
@@ -47,6 +45,7 @@ const SIDEBAR_COLLAPSED_WIDTH = 80;
 
 export default function Sidebar({
   isAdmin = false,
+  isGuest = false,
   collapsed = false,
   onToggle,
   userInfo,
@@ -99,17 +98,19 @@ export default function Sidebar({
     label: <Link to={path}>{title}</Link>,
   });
 
-  const items = [
-    nav("home", "系统概览", "/dashboard/overview", HomeOutlined),
-    nav("graph", "知识图谱管理", "/dashboard/graph", DatabaseOutlined),
-    nav("graph-dual", "中英双层对照", "/dashboard/graph-dual", ApartmentOutlined),
-    nav("virus", "病毒检测", "/dashboard/virus", BugOutlined),
-    nav("qa", "问答检索", "/dashboard/qa", QuestionCircleOutlined),
-    // 仅管理员可见
-    ...(isAdmin ? [{ type: "divider" }, nav("customers", "客户管理", "/dashboard/customers", TeamOutlined)] : []),
-  ];
+  const items = isGuest
+    ? [nav("home", "系统概览", "/dashboard/overview", HomeOutlined)]
+    : [
+      nav("home", "系统概览", "/dashboard/overview", HomeOutlined),
+      nav("graph", "知识图谱管理", "/dashboard/graph", DatabaseOutlined),
+      nav("graph-dual", "中英双层对照", "/dashboard/graph-dual", ApartmentOutlined),
+      nav("virus", "病毒检测", "/dashboard/virus", BugOutlined),
+      nav("qa", "问答检索", "/dashboard/qa", QuestionCircleOutlined),
+      // 仅管理员可见
+      ...(isAdmin ? [{ type: "divider" }, nav("customers", "客户管理", "/dashboard/customers", TeamOutlined)] : []),
+    ];
 
-  const username = userInfo?.username || "用户";
+  const username = isGuest ? "游客" : userInfo?.username || "用户";
   const initial = username.trim().slice(0, 1).toUpperCase();
 
   return (
@@ -139,7 +140,7 @@ export default function Sidebar({
                 fontSize: 14,
                 fontWeight: 600,
                 letterSpacing: "-0.01em",
-                color: color.fg,
+                color: "var(--c-fg)",
                 whiteSpace: "nowrap",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
@@ -155,7 +156,7 @@ export default function Sidebar({
             shape="circle"
             aria-label={collapsed ? "展开侧边栏" : "折叠侧边栏"}
             onClick={onToggle}
-            style={{ marginLeft: collapsed ? 0 : "auto", color: color.fgMuted, flex: "none" }}
+            style={{ marginLeft: collapsed ? 0 : "auto", color: "var(--c-fg-muted)", flex: "none" }}
             icon={
               collapsed ? (
                 <MenuUnfoldOutlined aria-hidden="true" style={{ fontSize: 15 }} />
@@ -227,7 +228,8 @@ export default function Sidebar({
             <Avatar
               size={26}
               style={{
-                background: color.primary,
+                background: "var(--c-primary)",
+                color: "var(--c-accent-text)",
                 flex: "none",
                 fontSize: 12,
                 fontWeight: 600,
@@ -238,7 +240,9 @@ export default function Sidebar({
             {!collapsed && (
               <span style={{ minWidth: 0, textAlign: "left" }}>
                 <span className="side-user-name">{username}</span>
-                <span className="side-user-role">{isAdmin ? "管理员" : "客户"}</span>
+                <span className="side-user-role">
+                  {isGuest ? "访客模式" : isAdmin ? "管理员" : "客户"}
+                </span>
               </span>
             )}
           </button>

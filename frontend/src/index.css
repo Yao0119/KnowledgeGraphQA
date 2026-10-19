@@ -57,6 +57,9 @@
   --c-glass-blur: saturate(180%) blur(24px);
 
   --c-graph-bg: #fbfbfb;
+  --c-bg-glow-1: rgba(255, 255, 255, 0.95);
+  --c-bg-glow-2: rgba(0, 0, 0, 0.04);
+  --c-bg-glow-3: rgba(0, 0, 0, 0.035);
 
   --font-ui: "Fira Sans", -apple-system, BlinkMacSystemFont, "PingFang SC",
     "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
@@ -93,10 +96,9 @@
   body {
     background-color: var(--c-bg);
     background-image:
-      radial-gradient(900px 620px at 10% -8%, rgba(255, 255, 255, 0.95), transparent 62%),
-      radial-gradient(820px 520px at 96% -2%, rgba(0, 0, 0, 0.04), transparent 58%),
-      radial-gradient(760px 700px at 52% 112%, rgba(0, 0, 0, 0.035), transparent 62%);
-    background-attachment: fixed;
+      radial-gradient(900px 620px at 10% -8%, var(--c-bg-glow-1), transparent 62%),
+      radial-gradient(820px 520px at 96% -2%, var(--c-bg-glow-2), transparent 58%),
+      radial-gradient(760px 700px at 52% 112%, var(--c-bg-glow-3), transparent 62%);
     color: var(--c-fg);
     font-family: var(--font-ui);
     font-size: 13px;
@@ -402,6 +404,31 @@
     min-height: calc(100vh - 36px); /* 12 上边距 + 24 下边距 */
     display: flex;
     flex-direction: column;
+  }
+
+  .route-loading {
+    min-height: 100vh;
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    gap: 10px;
+    color: var(--c-fg-muted);
+    font-size: 13px;
+  }
+
+  .route-loading-mark {
+    width: 24px;
+    height: 24px;
+    border: 2px solid var(--c-border-strong);
+    border-top-color: var(--c-primary);
+    border-radius: 50%;
+    animation: route-spin 720ms linear infinite;
+  }
+
+  @keyframes route-spin {
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   /* 右上角通知按钮（顶部栏已取消，只留这一个悬浮按钮） */
@@ -1149,15 +1176,13 @@
 @layer utilities {
   /* 页面载入：只做一次编排，不给每个卡片都来一遍 fade-up */
   .enter {
-    animation: enter 380ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+    animation: enter 180ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
   }
   @keyframes enter {
     from {
-      opacity: 0;
-      transform: translateY(6px);
+      transform: translateY(3px);
     }
     to {
-      opacity: 1;
       transform: none;
     }
   }
@@ -1196,6 +1221,9 @@ html[data-theme="dark"] {
   --c-glass-strong: rgba(36, 36, 36, 0.92);
   --c-glass-border: rgba(255, 255, 255, 0.12);
   --c-graph-bg: #1b1b1b;
+  --c-bg-glow-1: rgba(255, 255, 255, 0.055);
+  --c-bg-glow-2: rgba(255, 255, 255, 0.025);
+  --c-bg-glow-3: rgba(255, 255, 255, 0.03);
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.22), 0 8px 24px rgba(0, 0, 0, 0.18);
   --shadow-float: 0 6px 16px rgba(0, 0, 0, 0.28), 0 18px 42px rgba(0, 0, 0, 0.24);
   --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.06);

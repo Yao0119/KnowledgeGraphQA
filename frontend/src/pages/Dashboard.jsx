@@ -16,6 +16,7 @@ import {
     LogoutOutlined,
     UserOutlined,
     BellOutlined,
+    LoginOutlined,
 } from "@ant-design/icons";
 import Sidebar from "../components/Sidebar";
 import LLMSettingsModal from "../components/LLMSettingsModal";
@@ -27,6 +28,7 @@ export default function Dashboard() {
     const navigate = useNavigate();
     const [userInfo] = useState(() => getCurrentUser());
     const [isAdmin, setIsAdmin] = useState(() => getCurrentUser()?.role === "admin");
+    const isGuest = !userInfo;
     const [collapsed, setCollapsed] = useState(false);
     // 用户设置与管理员大模型设置分开，避免普通用户点开系统设置后只看到无权限提示。
     const [settingsOpen, setSettingsOpen] = useState(false);
@@ -40,6 +42,11 @@ export default function Dashboard() {
     }, [userInfo]);
 
     const handleLogout = () => {
+        if (isGuest) {
+            clearSession();
+            navigate("/login", { replace: true });
+            return;
+        }
         Modal.confirm({
             title: "确认退出",
             content: "确定要退出登录吗？",
@@ -53,6 +60,10 @@ export default function Dashboard() {
     };
 
     const handleProfileClick = () => {
+        if (isGuest) {
+            navigate("/login");
+            return;
+        }
         if (isAdmin) {
             navigate("/admin-profile");
         } else {
@@ -67,28 +78,34 @@ export default function Dashboard() {
             handleLogout();
         } else if (key === "settings") {
             setSettingsOpen(true);
+        } else if (key === "login") {
+            navigate("/login");
         }
     };
 
     // 账号下拉菜单（挂在侧边栏左下角的用户行上）
-    const userMenuItems = [
-        {
-            key: "profile",
-            label: isAdmin ? "个人资料" : "我的资料",
-            icon: <UserOutlined />,
-        },
-        { type: "divider" },
-        {
-            key: "logout",
-            label: "退出登录",
-            icon: <LogoutOutlined />,
-            danger: true,
-        },
-    ];
-
-    if (!userInfo) {
-        return null;
-    }
+    const userMenuItems = isGuest
+        ? [
+            {
+                key: "login",
+                label: "登录 / 注册",
+                icon: <LoginOutlined />,
+            },
+        ]
+        : [
+            {
+                key: "profile",
+                label: isAdmin ? "个人资料" : "我的资料",
+                icon: <UserOutlined />,
+            },
+            { type: "divider" },
+            {
+                key: "logout",
+                label: "退出登录",
+                icon: <LogoutOutlined />,
+                danger: true,
+            },
+        ];
 
     return (
         <div style={{ minHeight: "100vh" }}>
@@ -103,6 +120,7 @@ export default function Dashboard() {
                 collapsed={collapsed}
                 onToggle={() => setCollapsed((v) => !v)}
                 userInfo={userInfo}
+                isGuest={isGuest}
                 onOpenSettings={() => setSettingsOpen(true)}
                 settingsOpen={settingsOpen}
                 menuItems={userMenuItems}

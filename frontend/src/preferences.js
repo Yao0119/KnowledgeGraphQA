@@ -41,12 +41,18 @@ export function applyPreferences(preferences) {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
   const next = { ...DEFAULT_PREFERENCES, ...(preferences || {}) };
-  root.dataset.theme = resolveTheme(next.theme);
+  const resolvedTheme = resolveTheme(next.theme);
+  root.dataset.theme = resolvedTheme;
   root.dataset.themePreference = next.theme;
   root.dataset.fontScale = next.fontScale;
   root.dataset.density = next.density;
   root.dataset.reduceMotion = next.reduceMotion ? "true" : "false";
-  root.style.colorScheme = root.dataset.theme === "dark" ? "dark" : "light";
+  root.style.colorScheme = resolvedTheme;
+  document.querySelector('meta[name="theme-color"]')?.setAttribute(
+    "content",
+    resolvedTheme === "dark" ? "#171717" : "#F2F2F2"
+  );
+  document.querySelector('meta[name="color-scheme"]')?.setAttribute("content", resolvedTheme);
   window.dispatchEvent(new CustomEvent("kg-preferences-changed", { detail: next }));
 }
 

@@ -22,6 +22,8 @@ export const API_BASE = import.meta.env.VITE_API_BASE ?? "";
 
 export const TOKEN_KEY = "token";
 export const USER_KEY = "user";
+export const GUEST_KEY = "guest_mode";
+let guestModeInMemory = false;
 
 /**
  * 读取本地保存的 JWT
@@ -68,10 +70,42 @@ export function hasValidSession() {
 }
 
 /**
+ * 游客模式只保存在当前标签页，关闭标签页后自动失效。
+ * 这样不需要注册即可查看公开概览，也不会影响其他标签页的正常登录态。
+ */
+export function isGuestMode() {
+  if (guestModeInMemory) return true;
+  try {
+    return sessionStorage.getItem(GUEST_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function setGuestMode() {
+  guestModeInMemory = true;
+  try {
+    sessionStorage.setItem(GUEST_KEY, "1");
+  } catch {
+    // 浏览器禁用 sessionStorage 时由当前这次跳转直接进入概览。
+  }
+}
+
+export function clearGuestMode() {
+  guestModeInMemory = false;
+  try {
+    sessionStorage.removeItem(GUEST_KEY);
+  } catch {
+    // 忽略浏览器存储限制。
+  }
+}
+
+/**
  * 写入登录会话
  * @param {{token: string, user: object}} session 登录接口返回的令牌与用户对象
  */
 export function setSession({ token, user }) {
+  clearGuestMode();
   if (token) localStorage.setItem(TOKEN_KEY, token);
   if (user) localStorage.setItem(USER_KEY, JSON.stringify(user));
 }
@@ -81,6 +115,7 @@ export function setSession({ token, user }) {
  */
 export function clearSession() {
   [TOKEN_KEY, USER_KEY, "isAdmin", "role"].forEach((k) => localStorage.removeItem(k));
+  clearGuestMode();
 }
 
 /**
