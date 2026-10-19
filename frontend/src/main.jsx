@@ -52,7 +52,9 @@ ConfigProvider.config({
   ),
 });
 
-ReactDOM.createRoot(document.getElementById("root")).render(
+const rootElement = document.getElementById("root");
+
+ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
     <ConfigProvider theme={antdTheme} locale={zhCN}>
       <AntApp>
@@ -61,3 +63,36 @@ ReactDOM.createRoot(document.getElementById("root")).render(
     </ConfigProvider>
   </React.StrictMode>
 );
+
+// 首屏加载层放在 React 根节点之外，等 React 完成第一次 DOM 提交后再淡出，
+// 避免加载层被 createRoot 直接抹掉造成一次硬切闪屏。
+const dismissBootScreen = () => {
+  const bootScreen = document.getElementById("boot-screen");
+  if (!bootScreen) return;
+
+  const fadeOut = () => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        bootScreen.classList.add("is-hidden");
+        const remove = () => bootScreen.remove();
+        bootScreen.addEventListener("transitionend", remove, { once: true });
+        window.setTimeout(remove, 300);
+      });
+    });
+  };
+
+  const observer = new MutationObserver(() => {
+    if (rootElement.childElementCount > 0) {
+      observer.disconnect();
+      fadeOut();
+    }
+  });
+  observer.observe(rootElement, { childList: true });
+
+  if (rootElement.childElementCount > 0) {
+    observer.disconnect();
+    fadeOut();
+  }
+};
+
+dismissBootScreen();

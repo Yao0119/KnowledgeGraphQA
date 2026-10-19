@@ -12,10 +12,26 @@ import api, {
   setSession,
 } from "../api";
 
+let guestRoutesPromise = null;
+
+const preloadGuestRoutes = () => {
+  if (!guestRoutesPromise) {
+    guestRoutesPromise = Promise.all([
+      import("./Dashboard"),
+      import("./Home"),
+    ]).catch((error) => {
+      guestRoutesPromise = null;
+      throw error;
+    });
+  }
+  return guestRoutesPromise;
+};
+
 export default function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [guestLoading, setGuestLoading] = useState(false);
   const navigate = useNavigate();
 
   // 只有 token 和 user 同时有效时才跳转；半损坏会话先清理，避免与 Dashboard 循环跳转。
@@ -28,6 +44,11 @@ export default function Login() {
       clearSession();
     }
   }, [navigate]);
+
+  useEffect(() => {
+    // 登录页渲染后后台准备游客路由，触屏设备也无需先看到整屏加载层。
+    preloadGuestRoutes().catch(() => {});
+  }, []);
 
   const handleLogin = async () => {
     if (!username || !password) {
@@ -58,9 +79,18 @@ export default function Login() {
     if (e.key === "Enter") handleLogin();
   };
 
-  const handleGuestEnter = () => {
-    setGuestMode();
-    navigate("/dashboard/overview", { replace: true });
+  const handleGuestEnter = async () => {
+    if (guestLoading) return;
+    setGuestLoading(true);
+    try {
+      await preloadGuestRoutes();
+      setGuestMode();
+      navigate("/dashboard/overview", { replace: true });
+    } catch (error) {
+      console.error("游客页面加载失败:", error);
+      message.error("页面加载失败，请稍后重试");
+      setGuestLoading(false);
+    }
   };
 
   // 定义样式对象 (更加稳健的 iOS 风格)
@@ -218,7 +248,10 @@ export default function Login() {
           <Button
             block
             icon={<ArrowRightOutlined aria-hidden="true" />}
+            loading={guestLoading}
             onClick={handleGuestEnter}
+            onMouseEnter={preloadGuestRoutes}
+            onFocus={preloadGuestRoutes}
             style={styles.guestButton}
           >
             游客进入系统概览

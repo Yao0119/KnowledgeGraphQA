@@ -55,14 +55,24 @@
       .boot-screen {
         position: fixed;
         inset: 0;
+        z-index: 9999;
         display: grid;
         place-content: center;
         justify-items: center;
         gap: 12px;
-        background: inherit;
+        background: #f2f2f2;
         color: #1c1c1e;
         font-family: -apple-system, BlinkMacSystemFont, "PingFang SC",
           "Microsoft YaHei", "Segoe UI", sans-serif;
+        opacity: 1;
+        transition: opacity 180ms ease;
+      }
+      html[data-theme="dark"] .boot-screen {
+        background: #171717;
+      }
+      .boot-screen.is-hidden {
+        opacity: 0;
+        pointer-events: none;
       }
       html[data-theme="dark"] .boot-screen {
         color: #f5f5f5;
@@ -96,6 +106,9 @@
         animation-duration: 1.8s;
       }
       @media (prefers-reduced-motion: reduce) {
+        .boot-screen {
+          transition-duration: 0.01ms;
+        }
         .boot-spinner {
           animation-duration: 1.8s;
         }
@@ -109,12 +122,11 @@
     <title>知识图谱安全分析平台</title>
   </head>
   <body>
-    <div id="root">
-      <div class="boot-screen" role="status" aria-live="polite">
-        <span class="boot-spinner" aria-hidden="true"></span>
-        <span class="boot-title">知识图谱安全分析平台</span>
-        <span class="boot-status">正在加载工作区</span>
-      </div>
+    <div id="root"></div>
+    <div id="boot-screen" class="boot-screen" role="status" aria-live="polite">
+      <span class="boot-spinner" aria-hidden="true"></span>
+      <span class="boot-title">知识图谱安全分析平台</span>
+      <span class="boot-status">正在加载工作区</span>
     </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
