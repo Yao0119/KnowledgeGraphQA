@@ -1,6 +1,7 @@
-import { lazy, Suspense } from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { lazy, Suspense, useEffect } from "react";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import {
+  SESSION_EXPIRED_EVENT,
   clearSession,
   getCurrentUser,
   getToken,
@@ -70,6 +71,18 @@ const EntryRedirect = () => {
   return <Navigate to="/login" replace />;
 };
 
+const SessionExpiryListener = () => {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const handleExpired = () => navigate("/login", { replace: true });
+    window.addEventListener(SESSION_EXPIRED_EVENT, handleExpired);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, handleExpired);
+  }, [navigate]);
+
+  return null;
+};
+
 const LegacyProfileRedirect = () => {
   const token = getToken();
   const user = getCurrentUser();
@@ -83,6 +96,7 @@ const LegacyProfileRedirect = () => {
 export default function App() {
   return (
     <BrowserRouter>
+      <SessionExpiryListener />
       <Routes>
         {/* 入口一次性决定最终目标，避免 / -> /dashboard -> /login 连续重定向。 */}
         <Route path="/" element={<EntryRedirect />} />

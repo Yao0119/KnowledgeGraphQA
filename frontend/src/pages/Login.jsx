@@ -8,6 +8,7 @@ import api, {
   errorMessage,
   getCurrentUser,
   getToken,
+  hasValidSession,
   setGuestMode,
   setSession,
 } from "../api";
@@ -38,7 +39,7 @@ export default function Login() {
   useEffect(() => {
     const token = getToken();
     const user = getCurrentUser();
-    if (token && user) {
+    if (hasValidSession()) {
       navigate("/dashboard/graph", { replace: true });
     } else if (token || user || localStorage.getItem("user")) {
       clearSession();

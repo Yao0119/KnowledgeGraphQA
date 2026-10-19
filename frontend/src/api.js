@@ -23,6 +23,7 @@ export const API_BASE = import.meta.env.VITE_API_BASE ?? "";
 export const TOKEN_KEY = "token";
 export const USER_KEY = "user";
 export const GUEST_KEY = "guest_mode";
+export const SESSION_EXPIRED_EVENT = "kg-session-expired";
 let guestModeInMemory = false;
 
 /**
@@ -50,6 +51,27 @@ export function getCurrentUser() {
 }
 
 /**
+ * 本地检查 JWT 是否已经过期。后端 JWT 一定带 exp，这里只是提前拦截，
+ * 避免登录页与工作区因为失效令牌来回重定向。接口返回 401 时还会再次兜底。
+ */
+export function isTokenUsable(token = getToken()) {
+  if (!token) return false;
+  const parts = token.split(".");
+  if (parts.length !== 3) return false;
+
+  try {
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+    const bytes = Uint8Array.from(atob(padded), (char) => char.charCodeAt(0));
+    const payload = JSON.parse(new TextDecoder().decode(bytes));
+    if (!payload?.exp) return false;
+    return payload.exp * 1000 > Date.now() + 5000;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * 当前登录用户是否为管理员
  * @returns {boolean}
  */
@@ -66,7 +88,7 @@ export function isAdmin() {
  * @returns {boolean}
  */
 export function hasValidSession() {
-  return Boolean(getToken() && getCurrentUser());
+  return Boolean(isTokenUsable() && getCurrentUser());
 }
 
 /**
@@ -168,5 +190,18 @@ api.interceptors.request.use((config) => {
   }
   return config;
 });
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // 只有携带着一个实际令牌时才是“会话失效”。登录接口本身返回 401
+    // 不应触发全局跳转，否则会把普通密码错误放大成路由循环。
+    if (error?.response?.status === 401 && getToken()) {
+      clearSession();
+      window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT));
+    }
+    return Promise.reject(error);
+  }
+);
 
 export default api;
