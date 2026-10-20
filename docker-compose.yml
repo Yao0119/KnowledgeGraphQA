@@ -108,8 +108,8 @@ services:
   clamav-rest:
     image: ${CLAMAV_IMAGE:-ajilaag/clamav-rest:latest}
     restart: "no"
-    mem_limit: 1g
-    memswap_limit: 1g
+    mem_limit: 1200m
+    memswap_limit: 2g
     entrypoint:
       - /bin/bash
       - -c
@@ -117,7 +117,7 @@ services:
         sed '/sleep 120s/d; /echo RELOAD/d' /usr/bin/entrypoint.sh > /tmp/clamav-entrypoint.sh
         exec /bin/bash /tmp/clamav-entrypoint.sh
     environment:
-      SIGNATURE_CHECKS: ${CLAMAV_SIGNATURE_CHECKS:-24}
+      SIGNATURE_CHECKS: ${CLAMAV_SIGNATURE_CHECKS:-1}
     profiles:
       - clamav
     volumes:
