@@ -1,6 +1,6 @@
 const app = getApp();
 const USE_MOCK = false;
-const API_BASE = (app && app.globalData && app.globalData.apiBase) || "http://43.142.37.157";
+const API_BASE = (app && app.globalData && app.globalData.apiBase) || "https://www.lighthe.site";
 const wait = (value, delay = 260) => new Promise((resolve) => setTimeout(() => resolve(value), delay));
 const mock = {
   summary: { nodes: 1704218, relationships: 2438096, status: "healthy" },

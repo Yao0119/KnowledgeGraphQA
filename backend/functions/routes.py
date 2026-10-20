@@ -7,8 +7,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Header, UploadFile
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional, List
-from ..core import get_db, User
-from ..customer.routes import get_current_customer
+from ..core import get_db
 from .qa import answer_question_with_graph
 from .reasoning import ReasoningModule
 from .prediction import predict_threat
@@ -311,9 +310,8 @@ async def check_functions_health():
 @router.post("/api/virus-detection/upload")
 async def scan_uploaded_file(
     file: UploadFile = File(...),
-    _current_user: User = Depends(get_current_customer),
 ):
-    """把上传文件转发到内部 ClamAV REST 服务。"""
+    """匿名扫描上传文件；大小限制和 ClamAV 内部转发仍由服务端执行。"""
     filename = (file.filename or "unknown_file").replace("\\", "/").split("/")[-1]
     content = await file.read(VIRUS_MAX_FILE_SIZE + 1)
     if not content:

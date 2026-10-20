@@ -1,6 +1,6 @@
 App({
   globalData: {
-    apiBase: "http://43.142.37.157",
+    apiBase: "https://www.lighthe.site",
     useMock: false,
     token: "",
     user: { name: "安全分析员", role: "客户", initials: "安" },

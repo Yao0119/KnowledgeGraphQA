@@ -36,15 +36,6 @@ Page({
       this.setData({ report, scanning: false });
     } catch (error) {
       this.setData({ scanning: false });
-      if (error && error.statusCode === 401) {
-        wx.showModal({
-          title: "需要登录",
-          content: "病毒检测需要登录令牌，请先到“我的”页面登录。",
-          confirmText: "去登录",
-          success: (res) => { if (res.confirm) wx.navigateTo({ url: "/pages/profile/profile" }); },
-        });
-        return;
-      }
       wx.showToast({ title: (error && error.message) || "检测服务暂未连接", icon: "none" });
     }
   },
