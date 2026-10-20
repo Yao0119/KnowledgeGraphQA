@@ -395,12 +395,13 @@ export default function GraphDual() {
   };
 
   return (
-    <div style={{ padding: "0 4px" }}>
+    <div className="dual-page" style={{ padding: "0 4px" }}>
       {/* ---------- 顶部控制条 ---------- */}
-      <Card size="small" style={{ marginBottom: 12 }}>
+      <Card className="dual-toolbar" size="small" style={{ marginBottom: 12 }}>
         <Space wrap size="middle" style={{ width: "100%" }}>
           <Text strong>中英双层对照</Text>
           <Select
+            className="dual-graph-select"
             style={{ width: 260 }}
             value={selectedGraphId}
             options={graphs.map((graph) => ({ value: graph.graph_id, label: graph.name }))}
@@ -413,6 +414,7 @@ export default function GraphDual() {
             placeholder="先选择图谱"
           />
           <Select
+            className="dual-virus-select"
             showSearch
             style={{ width: 380 }}
             placeholder="选择要对照的恶意软件（中英两层都有）"
@@ -472,16 +474,17 @@ export default function GraphDual() {
                 会触发换行，英文面板整块被挤到下一行、在屏幕上直接看不见。
                 所以改成：虚线直接画在右列自己的 border-left 上（border-box 不会撑宽），
                 中间的 ALIGN_WITH 圆形标识用绝对定位，完全不参与布局计算。 */}
-            <Row gutter={0} align="stretch" style={{ position: "relative" }}>
-              <Col span={12}>
+            <Row className="dual-panels" gutter={0} align="stretch" style={{ position: "relative" }}>
+              <Col className="dual-panel-col" span={12}>
                 <Card
+                  className="dual-panel-card"
                   size="small"
                   title={
                     <Space>
                       <Badge color="var(--c-primary)" />
                       <span>中文图谱</span>
                       {/* 用留白分组代替中间点拼接的 meta 串 */}
-                      <span style={{ fontWeight: 400, fontSize: 12, color: color.fgFaint }}>
+                      <span className="dual-panel-meta" style={{ fontWeight: 400, fontSize: 12, color: color.fgFaint }}>
                         病毒家族 / 运行环境 / 解决方案
                       </span>
                     </Space>
@@ -489,20 +492,22 @@ export default function GraphDual() {
                   styles={{ body: { padding: 0 } }}
                 >
                   <div
+                    className="dual-canvas"
                     ref={cnContainerRef}
                     style={{ height: PANEL_HEIGHT, overflow: "hidden" }}
                   />
                 </Card>
               </Col>
 
-              <Col span={12} style={{ borderLeft: "2px dashed var(--c-border-strong)" }}>
+              <Col className="dual-panel-col dual-panel-col-en" span={12} style={{ borderLeft: "2px dashed var(--c-border-strong)" }}>
                 <Card
+                  className="dual-panel-card"
                   size="small"
                   title={
                     <Space>
                       <Badge color="var(--c-danger)" />
                       <span>英文图谱</span>
-                      <span style={{ fontWeight: 400, fontSize: 12, color: color.fgFaint }}>
+                      <span className="dual-panel-meta" style={{ fontWeight: 400, fontSize: 12, color: color.fgFaint }}>
                         Family / Platform / Solution
                       </span>
                     </Space>
@@ -510,6 +515,7 @@ export default function GraphDual() {
                   styles={{ body: { padding: 0 } }}
                 >
                   <div
+                    className="dual-canvas"
                     ref={enContainerRef}
                     style={{ height: PANEL_HEIGHT, overflow: "hidden" }}
                   />
@@ -519,6 +525,7 @@ export default function GraphDual() {
               {/* ALIGN_WITH 标识：绝对定位居中，不占布局宽度 */}
               <Tooltip title="两层之间只有核心节点存在 ALIGN_WITH 映射">
                 <div
+                  className="dual-bridge-marker"
                   style={{
                     position: "absolute",
                     top: "50%",
@@ -624,14 +631,14 @@ export default function GraphDual() {
                   description="单击图中任意节点，这里会并排显示它在中文层与英文层的属性"
                 />
               ) : (
-                <Row gutter={16}>
-                  <Col span={12}>
+                <Row className="dual-detail-row" gutter={16}>
+                  <Col className="dual-detail-col" span={12}>
                     <Title level={5} style={{ color: "var(--c-primary)" }}>
                       中文层
                     </Title>
                     {renderDetailSide("cn", "中文")}
                   </Col>
-                  <Col span={12}>
+                  <Col className="dual-detail-col" span={12}>
                     <Title level={5} style={{ color: "var(--c-danger)" }}>
                       英文层
                     </Title>

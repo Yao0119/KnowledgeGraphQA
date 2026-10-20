@@ -20,6 +20,7 @@ import {
   SettingOutlined, // 系统设置（左下角）
   MenuFoldOutlined,
   MenuUnfoldOutlined,
+  CloseOutlined,
 } from "@ant-design/icons";
 const SIDEBAR_WIDTH = 250;
 
@@ -51,8 +52,11 @@ export default function Sidebar({
   userInfo,
   onOpenSettings,
   settingsOpen = false,
+  mobileOpen = false,
   menuItems = [],
   onMenuClick,
+  onMobileClose,
+  onNavigate,
 }) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -87,6 +91,7 @@ export default function Sidebar({
         <Link
           to={path}
           aria-label={title}
+          onClick={() => onNavigate?.()}
           style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
         >
           <Icon style={{ fontSize: iconSize }} aria-hidden="true" />
@@ -95,11 +100,14 @@ export default function Sidebar({
     ) : (
       <Icon style={{ fontSize: iconSize }} aria-hidden="true" />
     ),
-    label: <Link to={path}>{title}</Link>,
+    label: <Link to={path} onClick={() => onNavigate?.()}>{title}</Link>,
   });
 
   const items = isGuest
-    ? [nav("home", "系统概览", "/dashboard/overview", HomeOutlined)]
+    ? [
+      nav("home", "系统概览", "/dashboard/overview", HomeOutlined),
+      nav("virus", "病毒检测", "/dashboard/virus", BugOutlined),
+    ]
     : [
       nav("home", "系统概览", "/dashboard/overview", HomeOutlined),
       nav("graph", "知识图谱管理", "/dashboard/graph", DatabaseOutlined),
@@ -114,10 +122,20 @@ export default function Sidebar({
   const initial = username.trim().slice(0, 1).toUpperCase();
 
   return (
-    <aside
-      className="sidebar-float"
-      style={{ width: collapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_WIDTH }}
-    >
+    <>
+      {mobileOpen && (
+        <button
+          type="button"
+          className="mobile-nav-backdrop"
+          aria-label="关闭导航"
+          onClick={onMobileClose}
+        />
+      )}
+      <aside
+        id="primary-navigation"
+        className={`sidebar-float ${mobileOpen ? "is-mobile-open" : ""}`}
+        style={{ width: collapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_WIDTH }}
+      >
       {/* 头部：展开时显示品牌与标题；折叠时只留折叠按钮（保证随时能展开回来）。
           折叠时整个头部改为居中，并且左右内边距对称 ——
           否则按钮会偏在左边（用户报的"展开按钮没居中"）。 */}
@@ -152,6 +170,7 @@ export default function Sidebar({
         )}
         <Tooltip title={collapsed ? "展开侧边栏" : "折叠侧边栏"} placement="right">
           <Button
+            className="desktop-collapse-button"
             type="text"
             shape="circle"
             aria-label={collapsed ? "展开侧边栏" : "折叠侧边栏"}
@@ -166,6 +185,14 @@ export default function Sidebar({
             }
           />
         </Tooltip>
+        <Button
+          className="mobile-nav-close"
+          type="text"
+          shape="circle"
+          aria-label="关闭导航"
+          onClick={onMobileClose}
+          icon={<CloseOutlined aria-hidden="true" style={{ fontSize: 16 }} />}
+        />
       </div>
 
       {/* 主导航。折叠状态由外层 class 交给 CSS 处理（见 index.css），
@@ -180,9 +207,9 @@ export default function Sidebar({
           // 若这一下点的就是标签里的 <Link>，react-router 已经 preventDefault
           // 并完成导航，这里直接跳过，避免多压一条重复的历史记录。
           onClick={({ key, domEvent }) => {
-            if (domEvent?.defaultPrevented) return;
             const to = NAV_PATHS[key];
-            if (to) navigate(to);
+            if (to && !domEvent?.defaultPrevented) navigate(to);
+            onNavigate?.();
           }}
           style={{ background: "transparent", borderInlineEnd: 0 }}
         />
@@ -248,6 +275,7 @@ export default function Sidebar({
           </button>
         </Dropdown>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }

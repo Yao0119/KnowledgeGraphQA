@@ -53,7 +53,7 @@ const ProtectedRoute = ({ children, guestAllowed = false }) => {
   return <Navigate to="/login" replace />;
 };
 
-// 图谱管理、上传、问答等仍要求真实登录态，游客不能绕过。
+// 图谱管理、对话检索等仍要求真实登录态；病毒扫描保持公开。
 const SessionRoute = ({ children }) => {
   if (hasValidSession()) return children;
 
@@ -125,7 +125,7 @@ export default function App() {
               统一到 /customer-profile（管理员同样可用）。 */}
           <Route path="profile" element={<LegacyProfileRedirect />} />
           <Route path="predict" element={lazyRoute(<SessionRoute><Predict /></SessionRoute>)} />
-          <Route path="virus" element={lazyRoute(<SessionRoute><VirusDetection /></SessionRoute>)} />
+          <Route path="virus" element={lazyRoute(<VirusDetection />)} />
           <Route path="customers" element={lazyRoute(<SessionRoute><AdminCustomerManagement /></SessionRoute>)} />
         </Route>
 

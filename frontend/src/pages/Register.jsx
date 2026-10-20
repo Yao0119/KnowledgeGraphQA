@@ -133,9 +133,9 @@ export default function Register() {
   };
 
   return (
-    <div style={styles.container}>
+    <div className="auth-shell" style={styles.container}>
       <Spin spinning={loading} size="large">
-        <div style={styles.card}>
+        <div className="auth-card" style={styles.card}>
           <h2 style={styles.title}>用户注册</h2>
           <p style={styles.subtitle}>创建您的账号以开始使用系统</p>
 

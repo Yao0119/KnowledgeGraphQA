@@ -17,6 +17,7 @@ import {
     UserOutlined,
     BellOutlined,
     LoginOutlined,
+    MenuOutlined,
 } from "@ant-design/icons";
 import Sidebar from "../components/Sidebar";
 import LLMSettingsModal from "../components/LLMSettingsModal";
@@ -33,6 +34,7 @@ export default function Dashboard() {
     // 用户设置与管理员大模型设置分开，避免普通用户点开系统设置后只看到无权限提示。
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [llmSettingsOpen, setLlmSettingsOpen] = useState(false);
+    const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
     useEffect(() => {
         // ProtectedRoute 已经保证会话完整；这里只应用用户偏好，不做第二次鉴权跳转。
@@ -40,6 +42,32 @@ export default function Dashboard() {
             applyPreferences(getPreferences(userInfo.id));
         }
     }, [userInfo]);
+
+    useEffect(() => {
+        if (!mobileNavOpen) return;
+
+        const previousOverflow = document.body.style.overflow;
+        const closeOnEscape = (event) => {
+            if (event.key === "Escape") setMobileNavOpen(false);
+        };
+        document.body.style.overflow = "hidden";
+        window.addEventListener("keydown", closeOnEscape);
+
+        return () => {
+            document.body.style.overflow = previousOverflow;
+            window.removeEventListener("keydown", closeOnEscape);
+        };
+    }, [mobileNavOpen]);
+
+    useEffect(() => {
+        const desktopQuery = window.matchMedia?.("(min-width: 768px)");
+        if (!desktopQuery) return;
+        const closeOnDesktop = () => {
+            if (desktopQuery.matches) setMobileNavOpen(false);
+        };
+        desktopQuery.addEventListener?.("change", closeOnDesktop);
+        return () => desktopQuery.removeEventListener?.("change", closeOnDesktop);
+    }, []);
 
     const handleLogout = () => {
         if (isGuest) {
@@ -72,6 +100,7 @@ export default function Dashboard() {
     };
 
     const handleMenuClick = ({ key }) => {
+        setMobileNavOpen(false);
         if (key === "profile") {
             handleProfileClick();
         } else if (key === "logout") {
@@ -81,6 +110,11 @@ export default function Dashboard() {
         } else if (key === "login") {
             navigate("/login");
         }
+    };
+
+    const openMobileNavigation = () => {
+        setCollapsed(false);
+        setMobileNavOpen(true);
     };
 
     // 账号下拉菜单（挂在侧边栏左下角的用户行上）
@@ -114,6 +148,28 @@ export default function Dashboard() {
                 跳到主内容
             </a>
 
+            <header className="mobile-topbar">
+                <Button
+                    type="text"
+                    shape="circle"
+                    className="mobile-topbar-button"
+                    aria-label="打开导航"
+                    aria-controls="primary-navigation"
+                    aria-expanded={mobileNavOpen}
+                    onClick={openMobileNavigation}
+                    icon={<MenuOutlined aria-hidden="true" />}
+                />
+                <div className="mobile-topbar-title">知识图谱安全分析</div>
+                <Button
+                    type="text"
+                    shape="circle"
+                    className="mobile-topbar-button"
+                    aria-label="通知"
+                    icon={<BellOutlined aria-hidden="true" />}
+                    onClick={() => message.info("暂无新通知")}
+                />
+            </header>
+
             {/* 悬浮侧边栏（含导航 + 左下角用户中心/设置） */}
             <Sidebar
                 isAdmin={isAdmin}
@@ -121,10 +177,16 @@ export default function Dashboard() {
                 onToggle={() => setCollapsed((v) => !v)}
                 userInfo={userInfo}
                 isGuest={isGuest}
-                onOpenSettings={() => setSettingsOpen(true)}
+                onOpenSettings={() => {
+                    setMobileNavOpen(false);
+                    setSettingsOpen(true);
+                }}
                 settingsOpen={settingsOpen}
+                mobileOpen={mobileNavOpen}
                 menuItems={userMenuItems}
                 onMenuClick={handleMenuClick}
+                onMobileClose={() => setMobileNavOpen(false)}
+                onNavigate={() => setMobileNavOpen(false)}
             />
 
             <div

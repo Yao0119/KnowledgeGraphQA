@@ -262,6 +262,7 @@ export default function VirusDetection() {
     // boxSizing 显式写成 border-box：全站没有全局 border-box 重置（刻意不引 preflight），
     // content-box 下 100% + 24px 内边距会再溢出 48px。
     <div
+      className="scan-page"
       style={{
         padding: "24px",
         width: "100%",
@@ -270,7 +271,7 @@ export default function VirusDetection() {
         boxSizing: "border-box",
       }}
     >
-      <div style={{ marginBottom: "28px", textAlign: "center" }}>
+      <div className="scan-page-heading" style={{ marginBottom: "28px", textAlign: "center" }}>
         <Title level={2} style={{ fontWeight: 700, marginBottom: "8px" }}>
           病毒检测
         </Title>
@@ -280,6 +281,7 @@ export default function VirusDetection() {
       </div>
 
       <Card
+        className="scan-card"
         style={{
           borderRadius: "var(--radius-lg)",
           boxShadow: "0 10px 30px var(--c-border)",
@@ -371,6 +373,7 @@ export default function VirusDetection() {
             </div>
 
             <div
+              className="scan-actions"
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -434,7 +437,14 @@ export default function VirusDetection() {
               <CloudUploadOutlined style={{ fontSize: 22 }} />
             </div>
             <div className="scan-plate-title">
-              {dragging ? "松开即可开始检测" : "把文件拖到这里，或点击选择"}
+              {dragging ? (
+                "松开即可开始检测"
+              ) : (
+                <>
+                  <span className="scan-drop-drag">把文件拖到这里，或</span>
+                  点击选择文件
+                </>
+              )}
             </div>
             <div className="scan-plate-hint">支持任意格式，检测过程不会执行文件本身</div>
             <div className="scan-plate-limit">
@@ -522,6 +532,7 @@ export default function VirusDetection() {
               dataSource={report.scan_results}
               pagination={false}
               rowKey="engine"
+              scroll={{ x: 440 }}
               style={{
                 borderRadius: "var(--radius-lg)",
                 overflow: "hidden",

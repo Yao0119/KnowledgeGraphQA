@@ -196,9 +196,9 @@ export default function Login() {
   };
 
   return (
-    <div style={styles.container}>
-      <div style={styles.card}>
-        <div style={styles.logo}>
+    <div className="login-shell" style={styles.container}>
+      <div className="login-card" style={styles.card}>
+        <div className="login-logo" style={styles.logo}>
           <LockOutlined />
         </div>
         <h1 style={styles.title}>知识图谱安全系统</h1>
